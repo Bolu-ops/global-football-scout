@@ -52,3 +52,4 @@ docker/volumes/
 Thumbs.db
 global_football_scout.egg-info/
 logs/
+ml/artifacts/

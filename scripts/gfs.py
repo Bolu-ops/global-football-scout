@@ -305,6 +305,102 @@ def link_wikidata() -> None:
     )
 
 
+value_app = typer.Typer(
+    no_args_is_help=True, help="Transfer-value model (needs licensed transfer data)"
+)
+app.add_typer(value_app, name="value-model")
+af_app = typer.Typer(no_args_is_help=True, help="API-Football (licensed; needs API_FOOTBALL_KEY)")
+app.add_typer(af_app, name="api-football")
+
+
+@af_app.command("link-players")
+def af_link_players(limit: int | None = None) -> None:
+    """Map internal players to API-Football ids (strict name + nationality + DOB match)."""
+    from data_pipeline.ingestion.api_football.transfers import link_players
+    from gfs_core.db import get_session
+
+    s = get_session()
+    try:
+        console.print(link_players(s, limit))
+    finally:
+        s.close()
+
+
+@af_app.command("transfers")
+def af_transfers(
+    limit: int | None = typer.Option(None, help="Only the first N linked players"),
+) -> None:
+    """Load transfer history (with fees where disclosed) for linked players; raw responses are kept."""
+    from data_pipeline.ingestion.api_football.transfers import ApiFootballTransfers
+    from gfs_core.db import get_session
+
+    s = get_session()
+    try:
+        console.print(ApiFootballTransfers(s).load_linked_players(limit))
+    finally:
+        s.close()
+
+
+@value_app.command("train")
+def value_train(
+    val_from: str = typer.Option("2023-07-01", help="validation window start (YYYY-MM-DD)"),
+    test_from: str = typer.Option("2024-07-01", help="test window start (YYYY-MM-DD)"),
+    fast: bool = typer.Option(False, help="ridge + hist-GB only"),
+) -> None:
+    """Compare models on a time split, persist every run to model_runs, keep the best artifact."""
+    from datetime import date
+
+    from gfs_core.db import get_session
+    from ml.transfer_value import train_and_record
+
+    s = get_session()
+    try:
+        out = train_and_record(
+            s, date.fromisoformat(val_from), date.fromisoformat(test_from), fast=fast
+        )
+    finally:
+        s.close()
+    console.print(f"[green]trained[/green] {out}")
+
+
+@value_app.command("activate")
+def value_activate(run_id: int) -> None:
+    """Mark a model run as the active one served by the API."""
+    from gfs_core.db import get_session
+    from ml.transfer_value import activate
+
+    s = get_session()
+    try:
+        activate(s, run_id)
+    finally:
+        s.close()
+    console.print(f"[green]active[/green] run {run_id}")
+
+
+@value_app.command("predict")
+def value_predict(
+    run_id: int, as_of: str = typer.Option(..., help="YYYY-MM-DD"), all_players: bool = True
+) -> None:
+    """Write model_predictions (value, 80% interval, confidence, SHAP factors) for every player with prior minutes."""
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from gfs_core.db import get_session
+    from gfs_core.db.models import Player
+    from ml.transfer_value import predict_and_record
+
+    s = get_session()
+    try:
+        ids = list(
+            s.scalars(select(Player.player_id).where(Player.merged_into_player_id.is_(None)))
+        )
+        n = predict_and_record(s, run_id, ids, date.fromisoformat(as_of))
+    finally:
+        s.close()
+    console.print(f"[green]predicted[/green] {n} players")
+
+
 @app.command("rebuild-analytics")
 def rebuild_analytics() -> None:
     """aggregate -> league-strength -> percentiles -> profiles, in one step (after any ingestion)."""
