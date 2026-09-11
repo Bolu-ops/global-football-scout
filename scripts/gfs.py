@@ -23,11 +23,13 @@ structlog.configure(
 @app.command()
 def seed() -> None:
     """Seed reference tables (data sources, metric definitions, position map)."""
+    from data_pipeline.seeds.analytics_config import seed_analytics_config
     from data_pipeline.seeds.apply import seed_all
     from gfs_core.db import session_scope
 
     with session_scope() as s:
         counts = seed_all(s)
+        counts["config_version"] = seed_analytics_config(s)
     console.print(f"[green]seeded[/green] {counts}")
 
 
@@ -103,18 +105,185 @@ def statsbomb_ingest_all(
             session.close()
 
 
+@app.command("ingest-uefa")
+def ingest_uefa(
+    start: int = typer.Option(2004, help="First season end-year"),
+    end: int = typer.Option(2026, help="Last season end-year"),
+) -> None:
+    """Load official UEFA association coefficients (men + women) for league strength."""
+    from data_pipeline.ingestion.uefa.coefficients import ingest_coefficients
+    from gfs_core.db import session_scope
+
+    with session_scope() as s:
+        n = ingest_coefficients(s, range(start, end + 1))
+    console.print(f"[green]loaded[/green] {n} association-season rows")
+
+
 @app.command()
 def aggregate(
     season_id: int | None = typer.Option(None, help="Internal season_id; default all"),
 ) -> None:
     """Build player_season_team_stats / player_season_stats / stat_observations from match data."""
     from data_pipeline.normalization.season_aggregate import aggregate_seasons
-
     from gfs_core.db import session_scope
 
     with session_scope() as s:
         result = aggregate_seasons(s, season_id)
     console.print(f"[green]aggregated[/green] {result}")
+
+
+@app.command("league-strength")
+def league_strength() -> None:
+    """Compute league_strength for every domestic competition-season and show the A1 exclusion set."""
+    from data_pipeline.seeds.analytics_config import load_config
+    from gfs_core.db import session_scope
+    from ml.league_strength import compute_league_strength, current_league_ranking
+
+    with session_scope() as s:
+        result = compute_league_strength(s)
+        s.flush()
+        n = load_config(s)["EXCLUDED_TOP_LEAGUES_COUNT"]
+        ranking = current_league_ranking(s)
+    console.print(f"[green]league strength[/green] {result}")
+    t = Table("rank", "league", "country", "score", "basis", "confidence", "excluded (A1)")
+    for i, r in enumerate(ranking, 1):
+        t.add_row(
+            str(i),
+            r["name"],
+            r["country"] or "",
+            f"{r['score']:.3f}",
+            r["basis"],
+            r["confidence"],
+            "yes" if i <= n else "",
+        )
+    console.print(t)
+
+
+@app.command()
+def percentiles() -> None:
+    """Compute raw and league-adjusted percentiles for every player-season (rebuilds the table)."""
+    from gfs_core.db import session_scope
+    from ml.percentiles import compute_percentiles
+
+    with session_scope() as s:
+        result = compute_percentiles(s)
+    console.print(f"[green]percentiles[/green] {result}")
+
+
+@app.command()
+def profiles() -> None:
+    """Build standardized profile vectors (pgvector) for every player-season."""
+    from gfs_core.db import session_scope
+    from ml.profiles import build_profile_vectors
+
+    with session_scope() as s:
+        result = build_profile_vectors(s)
+    console.print(f"[green]profiles[/green] {result}")
+
+
+@app.command()
+def similar(
+    name: str = typer.Argument(..., help="Player name (substring, accent-insensitive)"),
+    min_minutes: int = 900,
+    limit: int = 10,
+    mode: str = "raw",
+    include_top_leagues: bool = typer.Option(False, help="Disable the A1 top-league exclusion"),
+) -> None:
+    """Find statistically similar players (no LLM involved)."""
+    from sqlalchemy import or_, select
+
+    from gfs_core.db import session_scope
+    from gfs_core.db.models import Player
+    from gfs_core.text import normalize_name
+    from ml.similarity import SimilarityFilters, find_similar
+
+    with session_scope() as s:
+        q = normalize_name(name)
+        players = s.execute(
+            select(Player.player_id, Player.full_name, Player.known_as)
+            .where(or_(Player.normalized_name.contains(q), Player.normalized_known_as.contains(q)))
+            .limit(5)
+        ).all()
+        if not players:
+            console.print(f"[red]no player matching '{name}'[/red]")
+            raise typer.Exit(1)
+        pid, full, known = players[0]
+        console.print(
+            f"target: [bold]{known or full}[/bold] (player_id={pid})"
+            + (
+                f"  [dim]other matches: {[p[2] or p[1] for p in players[1:]]}[/dim]"
+                if len(players) > 1
+                else ""
+            )
+        )
+        out = find_similar(
+            s,
+            pid,
+            filters=SimilarityFilters(
+                min_minutes=min_minutes,
+                limit=limit,
+                mode=mode,
+                exclude_top_leagues=not include_top_leagues,
+            ),
+        )
+        if out["target"] is None:
+            console.print(f"[yellow]{out['reason']}[/yellow]")
+            raise typer.Exit(1)
+        t = out["target"]
+        console.print(
+            f"profile: {t['position_code']} ({t['position_group']}) {t['competition']} {t['season']} — {t['minutes']:.0f} min; candidates considered: {out['candidates_considered']}"
+        )
+        if out["excluded_competitions"]:
+            console.print(
+                "excluded (A1): "
+                + ", ".join(
+                    f"{e.get('name', e['competition_id'])}" for e in out["excluded_competitions"]
+                )
+            )
+        tbl = Table(
+            "#",
+            "player",
+            "pos",
+            "team",
+            "competition",
+            "season",
+            "min",
+            "sim",
+            "compat",
+            "conf",
+            "top categories",
+        )
+        for h in out["results"]:
+            cats = ", ".join(
+                f"{c} {v:.0f}"
+                for c, v in sorted(h.sim_by_category.items(), key=lambda x: -x[1])[:3]
+            )
+            tbl.add_row(
+                str(h.rank),
+                h.known_as or h.player_name,
+                h.position_code,
+                h.team_name or "",
+                h.competition_name,
+                h.season_name,
+                f"{h.minutes:.0f}",
+                f"{h.sim_final:.1f}",
+                f"{h.compatibility:.2f}",
+                h.confidence_tier,
+                cats,
+            )
+        console.print(tbl)
+        if out["results"]:
+            h = out["results"][0]
+            console.print(f"\nwhy #1 ({h.known_as or h.player_name}) — supporting:")
+            for c in h.explanation.supporting[:5]:
+                console.print(
+                    f"  {c['feature']:<28} target {c['target_value']:>8.3f}   candidate {c['candidate_value']:>8.3f}   Δz {c['delta_z']:+.2f}"
+                )
+            console.print("divergent:")
+            for c in h.explanation.divergent[:3]:
+                console.print(
+                    f"  {c['feature']:<28} target {c['target_value']:>8.3f}   candidate {c['candidate_value']:>8.3f}   Δz {c['delta_z']:+.2f}"
+                )
 
 
 @app.command()

@@ -51,3 +51,4 @@ docker/volumes/
 .DS_Store
 Thumbs.db
 global_football_scout.egg-info/
+logs/

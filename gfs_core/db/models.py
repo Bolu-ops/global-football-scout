@@ -711,6 +711,23 @@ class TeamRating(Base):
     __table_args__ = (Index("ix_team_ratings_date", "rating_system", "rating_date"),)
 
 
+class AssociationCoefficient(Base):
+    """Confederation association coefficients (e.g. UEFA 5-year ranking) per season year."""
+
+    __tablename__ = "association_coefficients"
+
+    confederation: Mapped[str] = mapped_column(String(10), primary_key=True)
+    gender: Mapped[Gender] = mapped_column(_enum(Gender, "gender"), primary_key=True)
+    season_year: Mapped[int] = mapped_column(SmallInteger, primary_key=True)  # season end year
+    country_code: Mapped[str] = mapped_column(String(3), primary_key=True)
+    country_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    country_id: Mapped[int | None] = mapped_column(ForeignKey("countries.country_id"))
+    position: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    points: Mapped[float] = mapped_column(Numeric(8, 3), nullable=False)
+    source_id: Mapped[int] = mapped_column(ForeignKey("data_sources.source_id"), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Analytics
 # ---------------------------------------------------------------------------
