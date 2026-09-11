@@ -135,7 +135,10 @@ export default function ScoutPage() {
           <div className="card p-4">
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-base font-semibold">Top {res.results.length} statistical matches</h2>
-              <span className="text-xs text-muted">click a row for the explanation · click a name for the full profile</span>
+              <span className="text-xs text-muted">
+                click a row for the explanation · click a name for the full profile ·{" "}
+                <Link href={`/compare?ids=${[res.target.player_id, ...res.results.slice(0, 4).map((h) => h.player_id)].join(",")}`} className="text-accent">compare top 4</Link>
+              </span>
             </div>
             {res.results.length === 0 ? (
               <p className="text-sm text-muted">No eligible candidates with these filters (try a lower minimum minutes; tournament players rarely exceed 600).</p>
