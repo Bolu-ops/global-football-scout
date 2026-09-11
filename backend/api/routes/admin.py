@@ -339,3 +339,10 @@ def decide_identity(candidate_id: int, decision: str, session: Session = Depends
     cand.decided_at = datetime.now(UTC)
     session.commit()
     return {"candidate_id": candidate_id, "status": cand.status.value}
+
+
+@router.post("/admin/cache/clear")
+def clear_cache() -> dict:
+    from backend import cache
+
+    return {"cleared": cache.clear()}

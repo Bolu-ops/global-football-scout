@@ -401,6 +401,16 @@ def value_predict(
     console.print(f"[green]predicted[/green] {n} players")
 
 
+@app.command("quality-scan")
+def quality_scan() -> None:
+    """Populate data_quality_flags (missing DOB, small samples, single-team seasons, pending reviews, minute mismatches)."""
+    from data_pipeline.quality import scan
+    from gfs_core.db import session_scope
+
+    with session_scope() as s:
+        console.print(f"[green]flags[/green] {scan(s)}")
+
+
 @app.command("rebuild-analytics")
 def rebuild_analytics() -> None:
     """aggregate -> league-strength -> percentiles -> profiles, in one step (after any ingestion)."""
@@ -418,6 +428,9 @@ def rebuild_analytics() -> None:
         console.print(f"percentiles: {compute_percentiles(s)}")
     with session_scope() as s:
         console.print(f"profiles: {build_profile_vectors(s)}")
+    from backend import cache
+
+    console.print(f"cache cleared: {cache.clear()} keys")
 
 
 @app.command()

@@ -101,6 +101,15 @@ def to_response(out: dict) -> SimilarityResponse:
 def player_similarity(
     player_id: int, body: SimilarityRequest, session: Session = Depends(db)
 ) -> SimilarityResponse:
+    from backend import cache
+    from data_pipeline.seeds.analytics_config import config_version
+
+    key = cache.key_for(
+        "similarity", config_version(session), {"player_id": player_id, **body.model_dump()}
+    )
+    cached = cache.get(key)
+    if cached is not None:
+        return SimilarityResponse(**cached)
     filters = SimilarityFilters(
         min_minutes=body.min_minutes,
         limit=body.limit,
@@ -113,7 +122,9 @@ def player_similarity(
         max_age=body.max_age,
     )
     out = find_similar(session, player_id, body.season_id, filters)
-    return to_response(out)
+    response = to_response(out)
+    cache.put(key, response.model_dump())
+    return response
 
 
 @router.get("/{player_id}/similarity", response_model=SimilarityResponse)
