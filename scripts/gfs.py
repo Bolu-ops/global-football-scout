@@ -286,6 +286,25 @@ def similar(
                 )
 
 
+@app.command("rebuild-analytics")
+def rebuild_analytics() -> None:
+    """aggregate -> league-strength -> percentiles -> profiles, in one step (after any ingestion)."""
+    from data_pipeline.normalization.season_aggregate import aggregate_seasons
+    from gfs_core.db import session_scope
+    from ml.league_strength import compute_league_strength
+    from ml.percentiles import compute_percentiles
+    from ml.profiles import build_profile_vectors
+
+    with session_scope() as s:
+        console.print(f"aggregate: {aggregate_seasons(s)}")
+    with session_scope() as s:
+        console.print(f"league strength: {compute_league_strength(s)}")
+    with session_scope() as s:
+        console.print(f"percentiles: {compute_percentiles(s)}")
+    with session_scope() as s:
+        console.print(f"profiles: {build_profile_vectors(s)}")
+
+
 @app.command()
 def stats() -> None:
     """Row counts for the main tables (real values from the database)."""
