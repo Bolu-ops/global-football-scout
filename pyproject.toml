@@ -65,6 +65,9 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "N", "W"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"backend/**" = ["B008"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
