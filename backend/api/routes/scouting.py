@@ -107,3 +107,63 @@ def natural_language(body: NaturalLanguageRequest, session: Session = Depends(db
         "result": result,
         "disclaimer": "The language model only translated the request; the ranking comes from the statistical engine.",
     }
+
+
+@router.post("/compare")
+def compare(body: dict, session: Session = Depends(db)) -> dict:
+    """Side-by-side metrics and percentiles for a target and up to 4 players (REQ §29)."""
+    from backend.services.players import player_stats
+
+    ids = body.get("player_ids") or []
+    if not (2 <= len(ids) <= 5):
+        raise HTTPException(422, "player_ids must contain 2 to 5 ids (target first)")
+    seasons = body.get("season_ids") or {}
+    columns = []
+    for pid in ids:
+        st = player_stats(session, int(pid), seasons.get(str(pid)))
+        if st is None:
+            raise HTTPException(404, f"no statistics for player {pid}")
+        season, metrics = st
+        columns.append(
+            {
+                "player_id": int(pid),
+                "season": season.model_dump(),
+                "metrics": {m.code: m.model_dump() for m in metrics},
+            }
+        )
+    codes = sorted({c for col in columns for c in col["metrics"]})
+    rows = []
+    for code in codes:
+        first = next(col["metrics"][code] for col in columns if code in col["metrics"])
+        rows.append(
+            {
+                "code": code,
+                "name": first["name"],
+                "family": first["family"],
+                "is_rate": first["is_rate"],
+                "values": [
+                    col["metrics"].get(code, {}).get("value" if first["is_rate"] else "per90")
+                    for col in columns
+                ],
+                "percentiles": [col["metrics"].get(code, {}).get("percentile") for col in columns],
+            }
+        )
+    sim = None
+    target = columns[0]
+    out = find_similar(
+        session,
+        target["player_id"],
+        target["season"]["season_id"],
+        SimilarityFilters(min_minutes=90, limit=50, exclude_top_leagues=False),
+    )
+    by_id = {h.player_id: h for h in out["results"]}
+    sim = {
+        col["player_id"]: (by_id[col["player_id"]].sim_final if col["player_id"] in by_id else None)
+        for col in columns[1:]
+    }
+    return {
+        "players": [{"player_id": c["player_id"], "season": c["season"]} for c in columns],
+        "similarity_to_target": sim,
+        "rows": rows,
+        "note": "similarity null = not among the target's 50 nearest candidates at a 90-minute floor",
+    }

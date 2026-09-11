@@ -28,5 +28,37 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: gfs-api
+    profiles: ["app"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-gfs}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-gfs}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./data:/app/data
+      - ./ml/artifacts:/app/ml/artifacts
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    container_name: gfs-frontend
+    profiles: ["app"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
 volumes:
   gfs_pgdata:

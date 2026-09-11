@@ -173,3 +173,18 @@ def player_transfer_value(player_id: int, session: Session = Depends(db)) -> dic
         "explanation": pred.explanation,
         "status": "ok",
     }
+
+
+@router.get("/{player_id}/report")
+def player_report(
+    player_id: int,
+    season_id: int | None = None,
+    target_player_id: int | None = None,
+    session: Session = Depends(db),
+) -> dict:
+    from backend.services.report import build_report
+
+    report = build_report(session, player_id, season_id, target_player_id)
+    if report is None:
+        raise HTTPException(404, "player not found")
+    return report
