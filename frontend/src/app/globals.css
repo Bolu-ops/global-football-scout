@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg: #0f1113;
+  --surface: #1a1a19;
+  --surface-2: #232422;
+  --border: #2f312e;
+  --text: #f2f2ef;
+  --text-2: #c3c2b7;
+  --muted: #8a8a82;
+  --accent: #3987e5;
+  --accent-2: #d95926;
+  --good: #199e70;
+  --warn: #c98500;
+  --bad: #e66767;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
