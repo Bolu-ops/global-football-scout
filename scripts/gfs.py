@@ -286,6 +286,25 @@ def similar(
                 )
 
 
+@app.command("link-wikidata")
+def link_wikidata() -> None:
+    """Link players to Wikidata (CC0) for date of birth / height / foot, with confidence tiers."""
+    from data_pipeline.ingestion.wikidata.linker import link_all
+    from gfs_core.db import get_session
+
+    session = get_session()
+    try:
+        results = link_all(session)
+    finally:
+        session.close()
+    auto = sum(r.get("auto", 0) for r in results.values())
+    review = sum(r.get("review", 0) for r in results.values())
+    none = sum(r.get("none", 0) for r in results.values())
+    console.print(
+        f"[green]linked[/green] auto={auto} review={review} unmatched={none} countries={len(results)}"
+    )
+
+
 @app.command("rebuild-analytics")
 def rebuild_analytics() -> None:
     """aggregate -> league-strength -> percentiles -> profiles, in one step (after any ingestion)."""

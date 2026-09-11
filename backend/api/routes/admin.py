@@ -281,3 +281,61 @@ def model_info(session: Session = Depends(db)) -> dict:
             "League-strength exponents are defaults, not fitted.",
         ],
     }
+
+
+@router.get("/admin/identity-reviews")
+def identity_reviews(limit: int = 100, session: Session = Depends(db)) -> list[dict]:
+    from gfs_core.db.models import Player
+
+    rows = session.execute(
+        select(IdentityMatchCandidate, Player.full_name, Player.known_as, DataSource.code)
+        .join(Player, Player.player_id == IdentityMatchCandidate.internal_player_id)
+        .join(DataSource, DataSource.source_id == IdentityMatchCandidate.source_id)
+        .where(IdentityMatchCandidate.status == MatchCandidateStatus.pending)
+        .order_by(IdentityMatchCandidate.score.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "candidate_id": c.candidate_id,
+            "source": code,
+            "source_player_id": c.source_player_id,
+            "internal_player_id": c.internal_player_id,
+            "internal_name": known or full,
+            "internal_full_name": full,
+            "score": float(c.score),
+            "components": c.components,
+            "created_at": c.created_at.isoformat(),
+        }
+        for c, full, known, code in rows
+    ]
+
+
+@router.post("/admin/identity-reviews/{candidate_id}/{decision}")
+def decide_identity(candidate_id: int, decision: str, session: Session = Depends(db)) -> dict:
+    from datetime import UTC, datetime
+
+    from fastapi import HTTPException
+
+    from data_pipeline.ingestion.wikidata.linker import apply_candidate
+    from gfs_core.db.models import PlayerSourceId
+
+    if decision not in ("approve", "reject"):
+        raise HTTPException(422, "decision must be approve or reject")
+    cand = session.get(IdentityMatchCandidate, candidate_id)
+    if cand is None or cand.status != MatchCandidateStatus.pending:
+        raise HTTPException(404, "pending candidate not found")
+    if decision == "approve":
+        already = session.get(PlayerSourceId, (cand.source_id, cand.source_player_id))
+        if already is not None and already.player_id != cand.internal_player_id:
+            raise HTTPException(
+                409, f"source id already linked to player {already.player_id}; merge players first"
+            )
+        apply_candidate(session, cand)
+        cand.status = MatchCandidateStatus.approved
+    else:
+        cand.status = MatchCandidateStatus.rejected
+    cand.decided_by = "admin"
+    cand.decided_at = datetime.now(UTC)
+    session.commit()
+    return {"candidate_id": candidate_id, "status": cand.status.value}

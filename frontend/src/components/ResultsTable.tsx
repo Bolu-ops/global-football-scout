@@ -37,6 +37,7 @@ export function ResultsTable({
             <th className="py-2 pr-3">#</th>
             <th className="py-2 pr-3">Player</th>
             <th className="py-2 pr-3">Pos</th>
+            <th className="py-2 pr-3 text-right">Age</th>
             <th className="py-2 pr-3">Club · competition</th>
             <th className="py-2 pr-3 text-right">Min</th>
             <th className="py-2 pr-3">Similarity</th>
@@ -64,6 +65,7 @@ export function ResultsTable({
                 <span className="ml-2 text-xs text-muted">{h.nationality ?? ""}</span>
               </td>
               <td className="py-2.5 pr-3 font-mono text-xs">{h.position}</td>
+              <td className="py-2.5 pr-3 tabular text-right" title={h.date_of_birth ? `born ${h.date_of_birth} (Wikidata)` : "Data unavailable"}>{h.age == null ? "—" : Math.floor(h.age)}</td>
               <td className="py-2.5 pr-3 text-ink-2">
                 {h.team_name ?? "—"} <span className="text-muted">· {h.competition} {h.season}</span>
               </td>

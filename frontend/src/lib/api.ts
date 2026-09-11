@@ -91,6 +91,8 @@ export type SimilarityHit = {
   confidence_score: number;
   league_strength: number | null;
   league_confidence: string | null;
+  age: number | null;
+  date_of_birth: string | null;
   explanation: { supporting: Contribution[]; divergent: Contribution[]; category_contributions: Record<string, number> };
   estimated_value_eur: number | null;
   value_note: string;
@@ -151,6 +153,8 @@ export const api = {
   naturalLanguage: (query: string) => post<{ interpretation: string; notes: string[]; result: SimilarityResponse | null; structured_filters: Record<string, unknown> }>(`/scouting/natural-language`, { query }),
   adminStats: () => get<AdminStats>(`/admin/stats`),
   adminJobs: () => get<Job[]>(`/admin/jobs`),
+  identityReviews: () => get<IdentityReview[]>(`/admin/identity-reviews`),
+  decideIdentity: (id: number, decision: "approve" | "reject") => post<{ status: string }>(`/admin/identity-reviews/${id}/${decision}`, {}),
   coverage: () => get<Coverage[]>(`/admin/coverage`),
   modelInfo: () => get<Record<string, unknown>>(`/model/info`),
   dataSources: () => get<DataSource[]>(`/data-sources`),
@@ -168,6 +172,7 @@ export type AdminStats = {
   config_version: string;
 };
 
+export type IdentityReview = { candidate_id: number; source: string; source_player_id: string; internal_player_id: number; internal_name: string; internal_full_name: string; score: number; components: Record<string, unknown>; created_at: string };
 export type Job = { job_id: number; job_type: string; status: string; params: Record<string, unknown>; started_at: string; finished_at: string | null; rows_read: number; rows_written: number; error: string | null; failed_items: number };
 export type Coverage = { competition: string; gender: string; type: string; season: string; coverage: string; note: string | null; matches: number };
 export type DataSource = { code: string; name: string; url: string | null; data_types: string[]; licence: string | null; licence_url: string | null; attribution_text: string | null; attribution_required: boolean; commercial_use_allowed: boolean | null; redistribution_allowed: boolean | null; requires_api_key: boolean; is_active: boolean; notes: string | null; reliability_score: number | null; update_frequency: string | null };

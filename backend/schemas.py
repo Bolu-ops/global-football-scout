@@ -76,6 +76,8 @@ class SimilarityRequest(BaseModel):
     excluded_competition_ids: list[int] | None = None
     competition_ids: list[int] | None = None
     category_weights: dict[str, float] | None = None
+    min_age: float | None = Field(None, ge=14, le=50)
+    max_age: float | None = Field(None, ge=14, le=50)
 
 
 class SimilarityHitOut(BaseModel):
@@ -101,6 +103,8 @@ class SimilarityHitOut(BaseModel):
     confidence_score: float
     league_strength: float | None
     league_confidence: str | None
+    age: float | None = None
+    date_of_birth: str | None = None
     explanation: dict[str, Any]
     estimated_value_eur: float | None = None
     value_note: str = "Data unavailable: transfer-value model not yet trained"

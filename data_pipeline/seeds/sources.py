@@ -68,8 +68,8 @@ SOURCES: list[SourceSpec] = [
         redistribution_allowed=True,
         requires_api_key=False,
         priority=50,
-        is_active=False,
-        notes="Planned for DOB / height / foot enrichment via SPARQL with identity-resolution confidence.",
+        is_active=True,
+        notes="DOB / height / preferred foot via per-country SPARQL; linked by name + nationality with age plausibility; ambiguous matches go to the review queue.",
     ),
     SourceSpec(
         code="football_data_org",

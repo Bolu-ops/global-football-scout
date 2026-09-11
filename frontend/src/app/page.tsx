@@ -13,6 +13,8 @@ export default function ScoutPage() {
   const [mode, setMode] = useState<"raw" | "adjusted">("raw");
   const [excludeTop, setExcludeTop] = useState(true);
   const [limit, setLimit] = useState(10);
+  const [minAge, setMinAge] = useState<string>("");
+  const [maxAge, setMaxAge] = useState<string>("");
   const [res, setRes] = useState<SimilarityResponse | null>(null);
   const [selected, setSelected] = useState<SimilarityHit | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,7 +28,10 @@ export default function ScoutPage() {
     setError(null);
     setSelected(null);
     try {
-      const r = await api.similarity(p.player_id, { min_minutes: minMinutes, mode, exclude_top_leagues: excludeTop, limit });
+      const r = await api.similarity(p.player_id, {
+        min_minutes: minMinutes, mode, exclude_top_leagues: excludeTop, limit,
+        min_age: minAge ? Number(minAge) : null, max_age: maxAge ? Number(maxAge) : null,
+      });
       setRes(r);
     } catch (e) {
       setError(String(e));
@@ -72,6 +77,13 @@ export default function ScoutPage() {
           <label className="flex flex-col gap-1">
             <span className="label">results</span>
             <input type="number" min={1} max={50} value={limit} onChange={(e) => setLimit(Number(e.target.value))} className="w-20 rounded border border-border bg-surface px-2 py-1.5" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="label">age (at season)</span>
+            <div className="flex gap-1">
+              <input type="number" min={14} max={50} placeholder="min" value={minAge} onChange={(e) => setMinAge(e.target.value)} className="w-16 rounded border border-border bg-surface px-2 py-1.5" />
+              <input type="number" min={14} max={50} placeholder="max" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} className="w-16 rounded border border-border bg-surface px-2 py-1.5" />
+            </div>
           </label>
           <label className="flex flex-col gap-1">
             <span className="label">profile mode</span>

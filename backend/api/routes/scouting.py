@@ -38,6 +38,8 @@ def scouting_search(
         excluded_competition_ids=body.excluded_competition_ids or [],
         competition_ids=body.competition_ids,
         category_weights=body.category_weights,
+        min_age=body.min_age,
+        max_age=body.max_age,
     )
     return to_response(find_similar(session, target, body.season_id, filters))
 
@@ -53,7 +55,9 @@ def natural_language(body: NaturalLanguageRequest, session: Session = Depends(db
 
     notes: list[str] = list(parsed.unsupported_terms)
     if parsed.min_age is not None or parsed.max_age is not None:
-        notes.append("Age filter ignored: no date-of-birth source is loaded (Data unavailable).")
+        notes.append(
+            "Age filter applied using Wikidata dates of birth; players without a linked date of birth are excluded from an age-filtered search."
+        )
     if parsed.max_value_eur is not None or parsed.cheaper_than_target:
         notes.append("Value filter ignored: transfer-value model not trained (Data unavailable).")
 
@@ -84,6 +88,8 @@ def natural_language(body: NaturalLanguageRequest, session: Session = Depends(db
                 exclude_top_leagues=parsed.exclude_top_leagues,
                 competition_ids=competition_ids,
                 category_weights=parsed.category_weights,
+                min_age=parsed.min_age,
+                max_age=parsed.max_age,
             )
             result = to_response(find_similar(session, found[0].player_id, None, filters))
             if parsed.positions:

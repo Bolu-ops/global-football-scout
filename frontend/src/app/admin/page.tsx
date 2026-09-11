@@ -1,18 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, type AdminStats, type Coverage, type Job } from "@/lib/api";
+import { api, type AdminStats, type Coverage, type IdentityReview, type Job } from "@/lib/api";
 
 export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [coverage, setCoverage] = useState<Coverage[]>([]);
+  const [reviews, setReviews] = useState<IdentityReview[]>([]);
+  async function decide(id: number, d: "approve" | "reject") {
+    await api.decideIdentity(id, d);
+    setReviews((r) => r.filter((x) => x.candidate_id !== id));
+  }
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api.adminStats().then(setStats).catch((e) => setError(String(e)));
     api.adminJobs().then(setJobs).catch(() => null);
     api.coverage().then(setCoverage).catch(() => null);
+    api.identityReviews().then(setReviews).catch(() => null);
   }, []);
 
   if (error) return <div className="text-bad">{error}</div>;
@@ -55,6 +61,25 @@ export default function AdminPage() {
             <tr key={s.code} className="border-b border-border/40"><td className="py-1 font-mono text-xs">{s.code}</td><td>{s.name}</td><td>{s.is_active ? "yes" : "no"}</td><td>{s.requires_api_key ? "yes" : "no"}</td><td className="text-right tabular">{s.jobs}</td></tr>
           ))}</tbody>
         </table>
+      </section>
+      <section className="card p-4">
+        <h2 className="mb-1 font-semibold">Identity review queue</h2>
+        <p className="mb-2 text-xs text-muted">Cross-source matches that were not unambiguous. Approving copies the source&apos;s biographical data onto the player; nothing is merged automatically.</p>
+        <div className="max-h-80 overflow-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="label text-left"><th>internal player</th><th>source candidate</th><th className="text-right">score</th><th>why review</th><th></th></tr></thead>
+            <tbody>{reviews.map((r) => (
+              <tr key={r.candidate_id} className="border-b border-border/40">
+                <td className="py-1">{r.internal_name} <span className="text-xs text-muted">({r.internal_full_name})</span></td>
+                <td className="text-xs">{String(r.components.label ?? "")} · born {String(r.components.dob ?? "?")} · <span className="font-mono">{r.source_player_id}</span></td>
+                <td className="text-right tabular">{r.score.toFixed(2)}</td>
+                <td className="text-xs text-muted">{r.components.ambiguous ? `ambiguous (${(r.components.ambiguous as string[]).length} candidates)` : r.components.possible_duplicate_of_player_id ? `possible duplicate of player ${String(r.components.possible_duplicate_of_player_id)}` : r.components.fuzzy ? `fuzzy name match ${Number(r.components.fuzzy).toFixed(2)}` : ""}</td>
+                <td className="whitespace-nowrap text-right"><button onClick={() => decide(r.candidate_id, "approve")} className="mr-2 text-good">approve</button><button onClick={() => decide(r.candidate_id, "reject")} className="text-bad">reject</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {reviews.length === 0 && <p className="text-sm text-muted">Queue empty.</p>}
+        </div>
       </section>
       <section className="card p-4">
         <h2 className="mb-2 font-semibold">Ingestion jobs</h2>

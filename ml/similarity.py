@@ -18,6 +18,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from sqlalchemy import and_, func, select
@@ -53,6 +54,13 @@ class SimilarityFilters:
     mode: str = "raw"
     limit: int = 10
     category_weights: dict[str, float] | None = None
+    min_age: float | None = None  # age at the candidate season (end_year-06-30)
+    max_age: float | None = None
+
+
+def age_at_season_expr(dob_col, end_year_col):
+    """SQL expression: age in years on 30 June of the season's end year."""
+    return (func.make_date(end_year_col, 6, 30) - dob_col) / 365.25
 
 
 @dataclass
@@ -88,6 +96,8 @@ class SimilarityHit:
     season_name: str
     league_strength: float | None
     league_confidence: str | None
+    age: float | None = None
+    date_of_birth: str | None = None
 
 
 def weights_hash(category_weights: dict[str, float], delta: float, mode: str) -> str:
@@ -255,6 +265,15 @@ def find_similar(
         q = q.where(comp_t.competition_id.not_in(excluded_ids))
     if filters.competition_ids:
         q = q.where(comp_t.competition_id.in_(filters.competition_ids))
+    if filters.min_age is not None or filters.max_age is not None:
+        q = q.join(Player, Player.player_id == pv.player_id).where(
+            Player.date_of_birth.is_not(None)
+        )
+        age = age_at_season_expr(Player.date_of_birth, sea.end_year)
+        if filters.min_age is not None:
+            q = q.where(age >= filters.min_age)
+        if filters.max_age is not None:
+            q = q.where(age <= filters.max_age)
     if filters.latest_season_only:
         latest = (
             select(pv.player_id.label("pid"), func.max(sea.end_year).label("y"))
@@ -392,11 +411,24 @@ def _attach_identity(session: Session, hits: list[SimilarityHit]) -> None:
     people = {
         r[0]: r
         for r in session.execute(
-            select(Player.player_id, Player.full_name, Player.known_as, Country.name)
+            select(
+                Player.player_id,
+                Player.full_name,
+                Player.known_as,
+                Country.name,
+                Player.date_of_birth,
+            )
             .outerjoin(Country, Country.country_id == Player.nationality_country_id)
             .where(Player.player_id.in_(ids))
         )
     }
+    end_years = dict(
+        session.execute(
+            select(Season.season_id, Season.end_year).where(
+                Season.season_id.in_({h.season_id for h in hits})
+            )
+        ).all()
+    )
     teams = {}
     for pid, sid, tname in session.execute(
         select(PlayerSeasonTeamStat.player_id, PlayerSeasonTeamStat.season_id, Team.name)
@@ -409,6 +441,10 @@ def _attach_identity(session: Session, hits: list[SimilarityHit]) -> None:
         p = people.get(h.player_id)
         if p:
             h.player_name, h.known_as, h.nationality = p[1], p[2], p[3]
+            if p[4]:
+                h.date_of_birth = p[4].isoformat()
+                ref = date(end_years.get(h.season_id, p[4].year), 6, 30)
+                h.age = round((ref - p[4]).days / 365.25, 1)
         t = teams.get((h.player_id, h.season_id))
         h.team_name = " / ".join(sorted(set(t))) if t else None
 

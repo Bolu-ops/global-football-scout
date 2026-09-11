@@ -80,6 +80,8 @@ def to_response(out: dict) -> SimilarityResponse:
             confidence_score=h.confidence_score,
             league_strength=h.league_strength,
             league_confidence=h.league_confidence,
+            age=h.age,
+            date_of_birth=h.date_of_birth,
             explanation=h.explanation.__dict__,
         )
         for h in out["results"]
@@ -107,6 +109,8 @@ def player_similarity(
         excluded_competition_ids=body.excluded_competition_ids or [],
         competition_ids=body.competition_ids,
         category_weights=body.category_weights,
+        min_age=body.min_age,
+        max_age=body.max_age,
     )
     out = find_similar(session, player_id, body.season_id, filters)
     return to_response(out)
