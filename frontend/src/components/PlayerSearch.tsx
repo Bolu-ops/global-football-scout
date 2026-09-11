@@ -9,10 +9,11 @@ export function PlayerSearch({ onSelect, autoFocus }: { onSelect: (p: PlayerSumm
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chosen = useRef<string | null>(null);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (q.trim().length < 2) return;
+    if (q.trim().length < 2 || q === chosen.current) return;
     timer.current = setTimeout(async () => {
       setLoading(true);
       try {
@@ -47,6 +48,7 @@ export function PlayerSearch({ onSelect, autoFocus }: { onSelect: (p: PlayerSumm
             <li key={p.player_id}>
               <button
                 onMouseDown={() => {
+                  chosen.current = p.display_name;
                   onSelect(p);
                   setQ(p.display_name);
                   setOpen(false);

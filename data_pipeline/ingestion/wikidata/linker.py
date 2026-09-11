@@ -276,7 +276,6 @@ def link_all(session: Session, min_players: int = 1) -> dict[str, dict[str, int]
     if source_id is None:
         raise RuntimeError("wikidata source not seeded")
     raw = WikidataRaw()
-    qids = raw.countries()
     counts = session.execute(
         select(Country.name, func.count(Player.player_id))
         .join(Player, Player.nationality_country_id == Country.country_id)
@@ -296,7 +295,11 @@ def link_all(session: Session, min_players: int = 1) -> dict[str, dict[str, int]
         for name, n in counts:
             if n < min_players:
                 continue
-            qid = qids.get(canonical_country(name))
+            try:
+                qid = raw.resolve_country(canonical_country(name))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("wikidata_resolve_failed", country=name, error=str(exc)[:200])
+                qid = None
             if qid is None:
                 log.warning("wikidata_country_unmapped", country=name, players=n)
                 results[name] = {"unmapped": n}

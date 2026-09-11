@@ -125,13 +125,14 @@ class WikidataRaw:
                 break
             offset += PAGE
             time.sleep(1.0)
-        if rows:
-            with path.open("w", encoding="utf-8", newline="") as f:
-                w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-                w.writeheader()
-                w.writerows(rows)
-        else:
-            path.write_text("")
+        if not rows:
+            # an empty answer for a country that has footballers is almost always a transient
+            # endpoint problem; never cache it, let the caller retry on the next run
+            raise RuntimeError(f"empty SPARQL result for {key}")
+        with path.open("w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
         self.manifest[key] = {"fetched_at": datetime.now(UTC).isoformat(), "rows": len(rows)}
         self.manifest_path.write_text(json.dumps(self.manifest, indent=1, sort_keys=True))
         time.sleep(1.0)
@@ -159,6 +160,29 @@ class WikidataRaw:
                 f"{{ ?p wdt:P27 wd:{SPORT_NATIONS[qid]} . FILTER NOT EXISTS {{ ?p wdt:P1532 ?other FILTER(?other != wd:{qid}) }} }}"
             )
         return f"?p wdt:P27 wd:{qid} ."
+
+    def resolve_country(self, label: str) -> str | None:
+        """QID of the item labelled `label` (en) that has the most footballer citizens.
+        Handles labels shared by several items (Denmark / Kingdom of Denmark, ...)."""
+        if label in FIXED_QIDS:
+            return FIXED_QIDS[label]
+        key = f"_resolve_{label}"
+        if key in self.manifest and "qid" in self.manifest[key]:
+            return self.manifest[key]["qid"] or None
+        safe = label.replace("\\", "\\\\").replace('"', '\\"')
+        rows = self.sparql(
+            f'SELECT ?c (COUNT(?p) AS ?n) WHERE {{ ?c rdfs:label "{safe}"@en . '
+            f"?p wdt:P27 ?c; wdt:P106 {FOOTBALLER} }} GROUP BY ?c ORDER BY DESC(?n) LIMIT 1"
+        )
+        qid = rows[0]["c"].rsplit("/", 1)[-1] if rows and int(float(rows[0]["n"])) > 0 else None
+        self.manifest[key] = {
+            "fetched_at": datetime.now(UTC).isoformat(),
+            "qid": qid,
+            "label": label,
+        }
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=1, sort_keys=True))
+        time.sleep(0.5)
+        return qid
 
     def footballers(self, qid: str) -> list[dict[str, str]]:
         return self._cached(
