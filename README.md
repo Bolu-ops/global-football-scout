@@ -75,7 +75,8 @@ Every source is a row in `data_sources` (licence, attribution, reliability, prio
 |---|---|---|---|
 | **StatsBomb (Hudl) Open Data** | **active** | event-level data with xG for 80 competition-seasons / 3,961 matches | Public Data User Agreement: research use, **no redistribution, no commercial use, StatsBomb logo attribution required**. Raw data is never committed or served — only derived aggregates. Users should register at statsbomb.com/resource-centre. [`docs/research/statsbomb_open_data.md`](docs/research/statsbomb_open_data.md) |
 | **UEFA association coefficients** | **active** | official 5-year coefficients, men (2004–2026) and women, from `comp.uefa.com/v2/coefficients` | official publication; used as a measured league-strength component |
-| Wikidata (CC0) | planned | date of birth / height / foot | CC0; needs identity resolution with confidence tiers |
+| **Wikidata (CC0)** | **active** | date of birth / height / preferred foot | CC0. Linked by name + nationality with an age-plausibility check; only unambiguous matches auto-link, the rest go to the admin review queue |
+| **ECB euro reference rates** | **active** | daily FX (41 currencies, 1999–today) for fee conversion | ECB data reusable with attribution; the historical ZIP is validated for freshness |
 | football-data.org | needs key | fixtures, squads (DOB, contract) | free tier, 10 req/min |
 | API-Football | needs key | worldwide player season stats, transfers (fees), injuries | paid/free plans; docs Cloudflare-gated from the build machine (fields unverified) |
 | Sportmonks | needs key | stats, transfers with amounts | free plan = Danish Superliga + Scottish Premiership |
@@ -147,7 +148,7 @@ Full specification: [`docs/research/methodology_spec.md`](docs/research/methodol
 
 ## Transfer-value methodology
 
-Design (not yet trained — needs data): [`docs/research/transfer_value_model.md`](docs/research/transfer_value_model.md).
+Implemented in [`ml/transfer_value.py`](ml/transfer_value.py) (design: [`docs/research/transfer_value_model.md`](docs/research/transfer_value_model.md)); **not yet trained** because no licensed fee data is loaded (Transfermarkt-derived datasets are excluded, amendment A2).
 
 - Training examples are built from **real historical transfers** with disclosed fees; features are computed only from data timestamped **strictly before** the transfer date (trailing 365 days + last completed season), age, position, minutes, per-90 and percentile features, selling-league strength, contract months remaining if known. Buying club/league is excluded from the primary model. Free, undisclosed, loan and swap deals are excluded, never imputed.
 - Target `log1p(fee_eur)`, fees converted with ECB reference rates by date and deflated with a dataset-derived fee-inflation index (nominal and real both stored).
@@ -155,12 +156,13 @@ Design (not yet trained — needs data): [`docs/research/transfer_value_model.md
 
 ## Machine-learning methodology and evaluation
 
-Planned models: median-by-band baseline, Ridge/ElasticNet, RandomForest, HistGradientBoosting, XGBoost, LightGBM, CatBoost; time-based train/validation/test split; MAE, RMSE, R², median AE in log and euro space, stratified by league-strength band; LightGBM quantile + split-conformal intervals; SHAP explanations; everything persisted to `model_runs` and shown on the Methodology page. Until a run exists the API returns `"Data unavailable: no active transfer-value model"`.
+`gfs value-model train` compares a median-by-band baseline, Ridge, HistGradientBoosting, RandomForest, XGBoost, LightGBM and CatBoost on a **time-based** split (train < `--val-from` < validation < `--test-from` < test; never random folds), reports MAE, RMSE, R² and median AE in both log and euro space plus ±25 %/±50 % hit rates, broken down by selling-league-strength band and position group (amendment A1 makes the non-top bands the ones that matter), and produces 80 % prediction intervals from quantile gradient boosting calibrated with split-conformal residuals (coverage is reported). Every run is persisted to `model_runs`; the best-by-validation-MAE artifact is kept; `gfs value-model predict` writes value, interval, confidence tier and SHAP top factors to `model_predictions`; `gfs value-model activate` selects what the API serves. The full pipeline is exercised by tests on clearly labelled synthetic data. Until a run exists the API returns `"Data unavailable: no active transfer-value model"`.
 
 ## Limitations
 
 - StatsBomb open data covers specific competition-seasons (most recent: 2023/24 Bundesliga, FAWSL, Frauen-Bundesliga, Liga F, Serie A Women; 2022/23 Ligue 1; 2024 Copa América / Euro; 2025 Women's Euro). It is **not** current-season worldwide coverage; several league seasons are single-team exports. Worldwide coverage requires the keyed providers (Phases 8–9).
-- No date of birth, height or preferred foot is present in loaded sources → age filters are unavailable ("Data unavailable"), not estimated.
+- Dates of birth come from Wikidata for auto-linked players only (about 85 % of loaded players); the rest show "Data unavailable" and are excluded from age-filtered searches rather than estimated. Ambiguous links wait in the admin review queue.
+- No reference market-value source is loaded (Transfermarkt-derived data is excluded), so the model–market discrepancy stays "Data unavailable" until a licensed provider supplies market values.
 - Goalkeeper post-shot xG is not in open data.
 - League-strength exponents are defaults, not fitted; Club Elo is unavailable.
 - Percentile pools are small for tournaments and for groups with few full-league seasons; when a pool is too small no percentile is shown.
@@ -203,7 +205,15 @@ For sources already wired: ingest the competition-season (`statsbomb ingest --co
 
 ## How to retrain the model
 
-Not applicable until a transfer-fee source is loaded. The planned flow is `gfs transfers ingest` → `gfs value-model train --test-from 2024-07-01` → inspect `model_runs` on the Methodology page → `gfs value-model activate <run_id>`.
+```bash
+# once, with API_FOOTBALL_KEY in .env (licensed fee source; inspect data/raw/api_football first)
+python scripts/gfs.py api-football link-players --limit 50      # strict id matching, review the raw responses
+python scripts/gfs.py api-football transfers --limit 50
+python scripts/gfs.py value-model train --val-from 2023-07-01 --test-from 2024-07-01
+python scripts/gfs.py value-model activate <run_id>              # after reading metrics on /model
+python scripts/gfs.py value-model predict <run_id> --as-of 2026-09-01
+```
+Retrain whenever new transfers land; every run stays in `model_runs` for comparison.
 
 ## Roadmap
 
@@ -214,8 +224,8 @@ Not applicable until a transfer-fee source is loaded. The planned flow is `gfs t
 | 3 | Populate real player / team / competition data | done (3,961 matches) |
 | 4 | Statistical normalization (per-90, percentiles, league adjustment) | done (adjustment exponents unfitted) |
 | 5 | Similarity engine | done |
-| 6 | Historical transfer dataset | blocked: needs a licensed provider key (Transfermarkt-derived data excluded, A2) |
-| 7 | Transfer-value model | designed, not trained |
+| 6 | Historical transfer dataset | loader built (API-Football, key-gated); blocked on a licensed key (A2 excludes Transfermarkt-derived data) |
+| 7 | Transfer-value model | pipeline implemented and tested on synthetic data; untrained until real fees exist |
 | 7b | API | done |
 | 8 | Frontend | done |
 | 8b | Additional data providers | needs keys |
