@@ -270,7 +270,7 @@ def model_info(session: Session = Depends(db)) -> dict:
         "transfer_value": {
             "status": "not trained" if not active_models else "active",
             "models": active_models,
-            "note": "Requires a licensed historical transfer-fee source; reference market values are never a feature or target.",
+            "note": "Requires a licensed historical transfer-fee source (API-Football / Sportmonks); Transfermarkt-derived datasets are excluded by project decision (A2); reference market values are never a feature or target.",
         },
         "metric_definition_version": DEFINITION_VERSION,
         "config_version": config_version(session),

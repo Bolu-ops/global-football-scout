@@ -6,7 +6,7 @@ Search a player → get the players whose *statistical* profile most closely mat
 
 This is a data-engineering / analytics project, not a football website. Rankings come from real data, statistics and machine learning; a language model is used only to translate natural-language queries into structured filters and to narrate results. Nothing is fabricated: if data is unavailable the platform says so.
 
-> **Status (2026-09-12).** Phases 1–5, 7 and 8 are functional on real data: 3,961 StatsBomb open-data matches (80 competition-seasons, 24 competitions, men's and women's), official UEFA association coefficients (2004–2026), a full event → per-90 → percentile → similarity pipeline, a FastAPI backend and a Next.js dashboard. **Not yet:** the transfer-value model (Phases 6–7) — it needs a licensed historical transfer-fee source, which requires an API key or a licensing decision (see [Data sources](#data-sources)). Coverage is *not* worldwide-current-season: see [Limitations](#limitations).
+> **Status (2026-09-12).** Phases 1–5, 7 and 8 are functional on real data: 3,961 StatsBomb open-data matches (80 competition-seasons, 24 competitions, men's and women's), official UEFA association coefficients (2004–2026), a full event → per-90 → percentile → similarity pipeline, a FastAPI backend and a Next.js dashboard. **Not yet:** the transfer-value model (Phases 6–7) — it needs a licensed historical transfer-fee source (API-Football or Sportmonks key); Transfermarkt-derived datasets are excluded by project decision (amendment A2). Coverage is *not* worldwide-current-season: see [Limitations](#limitations).
 
 ## Contents
 
@@ -80,7 +80,7 @@ Every source is a row in `data_sources` (licence, attribution, reliability, prio
 | API-Football | needs key | worldwide player season stats, transfers (fees), injuries | paid/free plans; docs Cloudflare-gated from the build machine (fields unverified) |
 | Sportmonks | needs key | stats, transfers with amounts | free plan = Danish Superliga + Scottish Premiership |
 | Club Elo | down | club ratings (Europe) | API returned 502 during the build; terms unverified |
-| Kaggle "Football Data from Transfermarkt" | **decision needed** | 175k+ transfers with fees, market values | compiler licence CC0 but **Transfermarkt-derived**; TM's ToS forbid scraping and AI/ML training — legally grey, off by default |
+| Kaggle "Football Data from Transfermarkt", ewenme/transfers | **excluded (A2)** | — | Transfermarkt-scraped; TM's ToS forbid scraping and AI/ML training. Not used for anything, by project decision |
 | FBref / Sports-Reference, Understat | **excluded** | — | ToS / robots.txt prohibit automated access |
 
 ## Database structure
@@ -214,7 +214,7 @@ Not applicable until a transfer-fee source is loaded. The planned flow is `gfs t
 | 3 | Populate real player / team / competition data | done (3,961 matches) |
 | 4 | Statistical normalization (per-90, percentiles, league adjustment) | done (adjustment exponents unfitted) |
 | 5 | Similarity engine | done |
-| 6 | Historical transfer dataset | blocked: needs API key or licensing decision |
+| 6 | Historical transfer dataset | blocked: needs a licensed provider key (Transfermarkt-derived data excluded, A2) |
 | 7 | Transfer-value model | designed, not trained |
 | 7b | API | done |
 | 8 | Frontend | done |

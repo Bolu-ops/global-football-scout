@@ -311,3 +311,7 @@ Supersedes the "Top 20" wording in sections 1, 16, 25 and 46.
 - The exclusion applies to the player's **current** club's competition at query time; a player who has moved from a top-3 league to a non-top-3 league is eligible, and vice-versa.
 - The advanced-filter and natural-language search paths follow the same rule; "Find me cheaper alternatives" etc. operate within the eligible pool.
 - The admin/model-transparency pages must state the rule and the current excluded competitions.
+
+## A2. No Transfermarkt-derived data for the transfer model (2026-09-12)
+
+The Kaggle "Football Data from Transfermarkt" mirror (davidcariboo/player-scores, dcaribou/transfermarkt-datasets), ewenme/transfers, and any other dataset scraped from Transfermarkt must NOT be used as training data, labels or features for the transfer-value model — not even behind a research-only flag. Historical fees must come from a licensed provider (API-Football, Sportmonks, or another provider with an explicit licence). Until one is connected the model remains untrained and every value is reported as "Data unavailable".
