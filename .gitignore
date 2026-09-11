@@ -1,0 +1,52 @@
+# --- secrets ---
+.env
+.env.local
+*.pem
+
+# --- data layers (raw/processed/analytics are rebuilt by the pipeline; keep structure only) ---
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# --- ML artifacts ---
+ml/artifacts/
+*.pkl
+*.joblib
+*.cbm
+*.ubj
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+build/
+dist/
+
+# --- node / next ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/coverage/
+npm-debug.log*
+yarn-error.log*
+
+# --- docker volumes / local db dumps ---
+docker/volumes/
+*.dump
+*.sql.gz
+
+# --- editors / os ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
