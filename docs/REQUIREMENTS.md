@@ -295,3 +295,19 @@ Build a REAL DATA PRODUCT. No fake AI demo, no invented players, no fake statist
 REAL DATA → CLEAN DATA → STATISTICAL ANALYSIS → NORMALIZATION → MACHINE LEARNING → PLAYER SIMILARITY → TRANSFER VALUE ESTIMATION → EXPLAINABLE SCOUTING
 
 Before writing large amounts of code, inspect the environment, determine what tools/data sources are actually available, and establish the architecture. Implement incrementally. Do not claim a data source is available unless it is actually accessible. Do not claim the database is worldwide until the data supports it. Every major analytical output must be reproducible from the stored data.
+
+---
+
+# AMENDMENTS
+
+## A1. Results exclude the top 3 leagues; return top 10 (2026-09-11)
+
+Supersedes the "Top 20" wording in sections 1, 16, 25 and 46.
+
+- The **search target** may be any player in the database, including players in the world's top 3 leagues.
+- The **results** must contain ONLY players whose current competition is OUTSIDE the world's top 3 leagues.
+- Return the **top 10** similar players (not 20), ranked by similarity, from that eligible pool.
+- "Top 3 leagues" is NOT hard-coded: it is the 3 domestic competitions with the highest `league_strength_score` for the most recent season, as produced by the league-strength model (section 14). It must be overridable via configuration (`EXCLUDED_TOP_LEAGUES_COUNT`, default 3; optional explicit `EXCLUDED_COMPETITION_IDS` list) and the UI must display which competitions are currently excluded and why.
+- The exclusion applies to the player's **current** club's competition at query time; a player who has moved from a top-3 league to a non-top-3 league is eligible, and vice-versa.
+- The advanced-filter and natural-language search paths follow the same rule; "Find me cheaper alternatives" etc. operate within the eligible pool.
+- The admin/model-transparency pages must state the rule and the current excluded competitions.
