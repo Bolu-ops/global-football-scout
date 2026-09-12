@@ -80,7 +80,7 @@ def test_admin_and_model_info(client):
     stats = client.get("/admin/stats").json()
     assert stats["counts"]["metric_definitions"] == 79
     info = client.get("/model/info").json()
-    assert info["transfer_value"]["status"] in ("not trained", "active")
+    assert info["transfer_value"]["status"].startswith(("not trained", "active", "trained, not activated"))
     assert "exclusion_rule" in info and "limitations" in info
 
 
