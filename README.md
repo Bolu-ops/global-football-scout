@@ -78,7 +78,7 @@ Every source is a row in `data_sources` (licence, attribution, reliability, prio
 | **Wikidata (CC0)** | **active** | date of birth / height / preferred foot | CC0. Linked by name + nationality with an age-plausibility check; only unambiguous matches auto-link, the rest go to the admin review queue |
 | **ECB euro reference rates** | **active** | daily FX (41 currencies, 1999–today) for fee conversion | ECB data reusable with attribution; the historical ZIP is validated for freshness |
 | football-data.org | needs key | fixtures, squads (DOB, contract) | free tier, 10 req/min |
-| API-Football | needs key | worldwide player season stats, transfers (fees), injuries | paid/free plans; docs Cloudflare-gated from the build machine (fields unverified) |
+| **API-Football** | **active (free plan)** | transfer histories with disclosed fees via `/transfers?team=` (verified live: `type` is `'€ 45M'` / `'Loan'` / `'Free'` / `'Free agent'` / `'Transfer'` / `'N/A'`); player season stats are limited to 2022–2024 on the free plan | licensed; 100 requests/day on the free plan; raw responses kept |
 | Sportmonks | needs key | stats, transfers with amounts | free plan = Danish Superliga + Scottish Premiership |
 | Club Elo | down | club ratings (Europe) | API returned 502 during the build; terms unverified |
 | Kaggle "Football Data from Transfermarkt", ewenme/transfers | **excluded (A2)** | — | Transfermarkt-scraped; TM's ToS forbid scraping and AI/ML training. Not used for anything, by project decision |
@@ -148,7 +148,7 @@ Full specification: [`docs/research/methodology_spec.md`](docs/research/methodol
 
 ## Transfer-value methodology
 
-Implemented in [`ml/transfer_value.py`](ml/transfer_value.py) (design: [`docs/research/transfer_value_model.md`](docs/research/transfer_value_model.md)); **not yet trained** because no licensed fee data is loaded (Transfermarkt-derived datasets are excluded, amendment A2).
+Implemented in [`ml/transfer_value.py`](ml/transfer_value.py) (design: [`docs/research/transfer_value_model.md`](docs/research/transfer_value_model.md)). **Trained but not activated** (2026-09-12): 4,446 licensed transfers (1,032 with disclosed fees) were loaded from API-Football, but only 75 satisfy the ≥450-prior-minutes rule because StatsBomb's open seasons cover few pre-transfer windows (42 of the 75 are summer 2016). On the time split (train ≤2016 n=50, validation 2017–20 n=14, test 2021+ n=11) no ML model beat the median-by-band baseline (baseline test MAE 0.52 log / 64 % within ±50 %; best ML: CatBoost 0.82 / 55 %), so the API keeps answering "Data unavailable". All seven runs are on the Methodology page. Growing the training set requires match data for more seasons (a paid stats plan), not more transfers.
 
 - Training examples are built from **real historical transfers** with disclosed fees; features are computed only from data timestamped **strictly before** the transfer date (trailing 365 days + last completed season), age, position, minutes, per-90 and percentile features, selling-league strength, contract months remaining if known. Buying club/league is excluded from the primary model. Free, undisclosed, loan and swap deals are excluded, never imputed.
 - Target `log1p(fee_eur)`, fees converted with ECB reference rates by date and deflated with a dataset-derived fee-inflation index (nominal and real both stored).
@@ -224,8 +224,8 @@ Retrain whenever new transfers land; every run stays in `model_runs` for compari
 | 3 | Populate real player / team / competition data | done (3,960 matches, 11,763 players) |
 | 4 | Statistical normalization (per-90, percentiles, league adjustment) | done (adjustment exponents unfitted) |
 | 5 | Similarity engine | done |
-| 6 | Historical transfer dataset | loader built (API-Football, key-gated); blocked on a licensed key (A2 excludes Transfermarkt-derived data) |
-| 7 | Transfer-value model | pipeline implemented and tested on synthetic data; untrained until real fees exist |
+| 6 | Historical transfer dataset | live: 4,446 licensed transfers / 1,032 fees from API-Football (free plan, ~30 clubs/day) |
+| 7 | Transfer-value model | trained on 75 real examples; not activated (does not beat the baseline); needs more pre-transfer match coverage |
 | 7b | API | done |
 | 8 | Frontend | done |
 | 8b | Additional data providers | needs keys |

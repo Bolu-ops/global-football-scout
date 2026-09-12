@@ -326,6 +326,21 @@ def af_link_players(limit: int | None = None) -> None:
         s.close()
 
 
+@af_app.command("load-teams")
+def af_load_teams(
+    budget: int = typer.Option(80, help="Max API requests to spend in this run"),
+) -> None:
+    """Resolve clubs, pull /transfers?team= for each, link players by name + club overlap, store fees."""
+    from data_pipeline.ingestion.api_football.teams import ApiFootballTeams
+    from gfs_core.db import get_session
+
+    s = get_session()
+    try:
+        console.print(ApiFootballTeams(s, budget).run())
+    finally:
+        s.close()
+
+
 @af_app.command("transfers")
 def af_transfers(
     limit: int | None = typer.Option(None, help="Only the first N linked players"),

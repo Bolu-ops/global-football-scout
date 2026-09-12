@@ -54,9 +54,10 @@ def parse_fee(text: str | None) -> tuple[FeeStatus, TransferType, float | None, 
     low = t.lower()
     if low.startswith("loan"):
         return FeeStatus.loan_fee, TransferType.loan, None, None
-    if low in ("free", "free transfer"):
+    if low in ("free", "free transfer", "free agent"):
         return FeeStatus.free, TransferType.free, None, None
-    if low in ("n/a", "na", "-", "?", "undisclosed"):
+    if low in ("n/a", "na", "-", "?", "undisclosed", "transfer"):
+        # 'Transfer' / 'N/A' = permanent move with no reported fee (verified in live responses)
         return FeeStatus.undisclosed, TransferType.permanent, None, None
     m = FEE_RE.match(t)
     if not m:

@@ -213,6 +213,26 @@ def model_info(session: Session = Depends(db)) -> dict:
         }
         for r in session.scalars(select(ModelRun).where(ModelRun.is_active.is_(True)))
     ]
+    all_runs = [
+        {
+            "run_id": r.run_id,
+            "algorithm": r.algorithm,
+            "version": r.version,
+            "trained_at": r.trained_at.isoformat(),
+            "n_train": r.n_train,
+            "n_test": r.n_test,
+            "is_active": r.is_active,
+            "validation": r.metrics.get("validation"),
+            "test": r.metrics.get("test"),
+            "notes": r.notes,
+        }
+        for r in session.scalars(
+            select(ModelRun)
+            .where(ModelRun.model_name == "transfer_value")
+            .order_by(ModelRun.run_id.desc())
+            .limit(20)
+        )
+    ]
     return {
         "principles": [
             "Rankings are produced by statistics and mathematical models only; an LLM is used solely to translate "
@@ -268,8 +288,15 @@ def model_info(session: Session = Depends(db)) -> dict:
             },
         },
         "transfer_value": {
-            "status": "not trained" if not active_models else "active",
+            "status": "not trained"
+            if not all_runs
+            else (
+                "active"
+                if active_models
+                else "trained, not activated (no model beats the baseline yet)"
+            ),
             "models": active_models,
+            "all_runs": all_runs,
             "note": "Requires a licensed historical transfer-fee source (API-Football / Sportmonks); Transfermarkt-derived datasets are excluded by project decision (A2); reference market values are never a feature or target.",
         },
         "metric_definition_version": DEFINITION_VERSION,

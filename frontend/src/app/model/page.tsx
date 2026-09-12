@@ -10,7 +10,7 @@ export default function ModelPage() {
   const sim = info.similarity as Record<string, unknown>;
   const ls = info.league_strength as Record<string, unknown>;
   const ex = info.exclusion_rule as { description: string; excluded: { name: string; score: number; basis: string }[]; full_ranking: { name: string; score: number; basis: string; confidence: string }[] };
-  const tv = info.transfer_value as { status: string; note: string };
+  const tv = info.transfer_value as { status: string; note: string; all_runs?: { run_id: number; algorithm: string; n_train: number; n_test: number; is_active: boolean; notes: string | null; validation: Record<string, number>; test: Record<string, number> }[] };
   const pct = info.percentiles as Record<string, unknown>;
   return (
     <div className="space-y-6">
@@ -39,7 +39,15 @@ export default function ModelPage() {
         <p>Pool hierarchy (first level with ≥ {String(pct.min_pool_size)} members is used): {(pct.pool_hierarchy as string[]).join(" → ")}</p>
         <p className="text-xs text-muted">membership minutes: {JSON.stringify(pct.pool_min_minutes)}</p>
       </Section>
-      <Section title="Transfer value model"><p>Status: <b>{tv.status}</b>. {tv.note}</p></Section>
+      <Section title="Transfer value model">
+        <p>Status: <b>{tv.status}</b>. {tv.note}</p>
+        {tv.all_runs && tv.all_runs.length > 0 && (
+          <table className="mt-3 w-full text-sm"><thead><tr className="label text-left"><th>run</th><th>algorithm</th><th className="text-right">train</th><th className="text-right">test</th><th className="text-right">val MAE (log)</th><th className="text-right">test MAE (log)</th><th className="text-right">test median AE</th><th className="text-right">within ±50%</th><th>active</th></tr></thead>
+            <tbody>{tv.all_runs.map((r) => (
+              <tr key={r.run_id} className="border-b border-border/40"><td className="py-1 tabular">{r.run_id}</td><td>{r.algorithm}{r.notes ? <span className="ml-1 text-xs text-muted">({r.notes})</span> : null}</td><td className="text-right tabular">{r.n_train}</td><td className="text-right tabular">{r.n_test}</td><td className="text-right tabular">{r.validation?.mae_log?.toFixed(3)}</td><td className="text-right tabular">{r.test?.mae_log?.toFixed(3)}</td><td className="text-right tabular">{r.test?.medae_eur != null ? `€${(r.test.medae_eur / 1e6).toFixed(1)}M` : "—"}</td><td className="text-right tabular">{r.test?.within_50pct != null ? `${Math.round(r.test.within_50pct * 100)}%` : "—"}</td><td>{r.is_active ? "yes" : ""}</td></tr>
+            ))}</tbody></table>
+        )}
+      </Section>
       <Section title="Limitations"><ul className="list-disc pl-5">{(info.limitations as string[]).map((p) => <li key={p}>{p}</li>)}</ul></Section>
       <p className="text-xs text-muted">metric definitions v{String(info.metric_definition_version)} · config {String(info.config_version)}</p>
     </div>
