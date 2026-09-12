@@ -6,7 +6,7 @@ Search a player → get the players whose *statistical* profile most closely mat
 
 This is a data-engineering / analytics project, not a football website. Rankings come from real data, statistics and machine learning; a language model is used only to translate natural-language queries into structured filters and to narrate results. Nothing is fabricated: if data is unavailable the platform says so.
 
-> **Status (2026-09-12).** Phases 1–5, 7 and 8 are functional on real data: 3,961 StatsBomb open-data matches (80 competition-seasons, 24 competitions, men's and women's), official UEFA association coefficients (2004–2026), a full event → per-90 → percentile → similarity pipeline, a FastAPI backend and a Next.js dashboard. **Not yet:** the transfer-value model (Phases 6–7) — it needs a licensed historical transfer-fee source (API-Football or Sportmonks key); Transfermarkt-derived datasets are excluded by project decision (amendment A2). Coverage is *not* worldwide-current-season: see [Limitations](#limitations).
+> **Status (2026-09-12).** Phases 1–5, 7 and 8 are functional on real data: 3,960 StatsBomb open-data matches (79 competition-seasons, 23 competitions, men's and women's; 11,763 players, 3.47 M per-match stat rows, 1.07 M percentiles, 23,364 profile vectors), 7,124 dates of birth from Wikidata, official UEFA association coefficients (2004–2026), a full event → per-90 → percentile → similarity pipeline, a FastAPI backend and a Next.js dashboard. **Not yet:** the transfer-value model (Phases 6–7) — it needs a licensed historical transfer-fee source (API-Football or Sportmonks key); Transfermarkt-derived datasets are excluded by project decision (amendment A2). Coverage is *not* worldwide-current-season: see [Limitations](#limitations).
 
 ## Contents
 
@@ -73,7 +73,7 @@ Every source is a row in `data_sources` (licence, attribution, reliability, prio
 
 | Source | Status | What | Licence / constraints |
 |---|---|---|---|
-| **StatsBomb (Hudl) Open Data** | **active** | event-level data with xG for 80 competition-seasons / 3,961 matches | Public Data User Agreement: research use, **no redistribution, no commercial use, StatsBomb logo attribution required**. Raw data is never committed or served — only derived aggregates. Users should register at statsbomb.com/resource-centre. [`docs/research/statsbomb_open_data.md`](docs/research/statsbomb_open_data.md) |
+| **StatsBomb (Hudl) Open Data** | **active** | event-level data with xG for 79 competition-seasons / 3,960 matches (as of 2026-09-12) | Public Data User Agreement: research use, **no redistribution, no commercial use, StatsBomb logo attribution required**. Raw data is never committed or served — only derived aggregates. Users should register at statsbomb.com/resource-centre. [`docs/research/statsbomb_open_data.md`](docs/research/statsbomb_open_data.md) |
 | **UEFA association coefficients** | **active** | official 5-year coefficients, men (2004–2026) and women, from `comp.uefa.com/v2/coefficients` | official publication; used as a measured league-strength component |
 | **Wikidata (CC0)** | **active** | date of birth / height / preferred foot | CC0. Linked by name + nationality with an age-plausibility check; only unambiguous matches auto-link, the rest go to the admin review queue |
 | **ECB euro reference rates** | **active** | daily FX (41 currencies, 1999–today) for fee conversion | ECB data reusable with attribution; the historical ZIP is validated for freshness |
@@ -221,7 +221,7 @@ Retrain whenever new transfers land; every run stays in `model_runs` for compari
 |---|---|---|
 | 1 | Database architecture | done |
 | 2 | Connect one reliable data source (StatsBomb open data) | done |
-| 3 | Populate real player / team / competition data | done (3,961 matches) |
+| 3 | Populate real player / team / competition data | done (3,960 matches, 11,763 players) |
 | 4 | Statistical normalization (per-90, percentiles, league adjustment) | done (adjustment exponents unfitted) |
 | 5 | Similarity engine | done |
 | 6 | Historical transfer dataset | loader built (API-Football, key-gated); blocked on a licensed key (A2 excludes Transfermarkt-derived data) |
