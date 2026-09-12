@@ -45,6 +45,51 @@ from gfs_core.text import normalize_name
 
 log = structlog.get_logger(__name__)
 
+CLUB_STOPWORDS = {
+    "fc",
+    "cf",
+    "ud",
+    "rc",
+    "rcd",
+    "sd",
+    "cd",
+    "as",
+    "ac",
+    "us",
+    "ogc",
+    "sc",
+    "ss",
+    "ssc",
+    "afc",
+    "rb",
+    "vfb",
+    "vfl",
+    "sv",
+    "tsg",
+    "fsv",
+    "bsc",
+    "1",
+    "real",
+    "club",
+    "de",
+    "la",
+    "deportivo",
+    "olympique",
+    "stade",
+    "athletic",
+    "atletico",
+    "sporting",
+    "racing",
+    "united",
+    "city",
+    "hotspur",
+    "town",
+    "wanderers",
+    "albion",
+    "rovers",
+    "calcio",
+    "milan",
+}
 RESERVE_RE = re.compile(
     r"(\b(w|b|ii|iii|u1[6-9]|u2[0-3]|youth|reserves?|women|femenino|feminino)\b)$"
 )
@@ -108,38 +153,46 @@ class ApiFootballTeams:
         )
         if existing:
             return existing
-        query = re.sub(r"[^a-z0-9 ]", " ", normalize_name(team.name)).strip()[:30]
-        data = self._get("/teams", f"teams/search_{team.team_id}.json", search=query)
-        if data is None:
-            return None
         want = normalize_name(team.name)
         country = self.session.scalar(
             select(Country.name).where(Country.country_id == team.country_id)
         )
-        cands = []
-        for item in data.get("response", []):
-            t = item.get("team", {})
-            got = normalize_name(t.get("name"))
-            if t.get("national") or RESERVE_RE.search(got):
-                continue
-            if (
-                country
-                and t.get("country")
-                and normalize_name(t["country"]) != normalize_name(country)
-            ):
-                continue
-            score = 100 if got == want else fuzz.token_set_ratio(want, got)
-            if score >= 90:
-                cands.append((score, t))
-        exact = [c for c in cands if c[0] == 100]
-        pool = exact if len(exact) == 1 else cands
-        if len({c[1]["id"] for c in pool}) != 1:
-            log.info(
-                "team_unresolved",
-                team=team.name,
-                candidates=[f"{c[1]['name']}/{c[1].get('country')}" for c in cands][:5],
-            )
+        queries = [re.sub(r"[^a-z0-9 ]", " ", want).strip()[:30]]
+        core = [w for w in want.split() if w not in CLUB_STOPWORDS]
+        if core and core[0] != queries[0]:
+            queries.append(core[0])
+        chosen: dict[str, Any] | None = None
+        seen: list[str] = []
+        for i, query in enumerate(queries):
+            data = self._get("/teams", f"teams/search_{team.team_id}_{i}.json", search=query)
+            if data is None:
+                return None
+            exact, fuzzy = [], []
+            for item in data.get("response", []):
+                t = item.get("team", {})
+                got = normalize_name(t.get("name"))
+                if t.get("national") or RESERVE_RE.search(got):
+                    continue
+                if (
+                    country
+                    and t.get("country")
+                    and normalize_name(t["country"]) != normalize_name(country)
+                ):
+                    continue
+                seen.append(f"{t['name']}/{t.get('country')}")
+                if got == want or got == " ".join(core):
+                    exact.append(t)
+                elif fuzz.token_set_ratio(want, got) >= 90:
+                    fuzzy.append(t)
+            pool = exact if exact else fuzzy
+            if len({t["id"] for t in pool}) == 1:
+                chosen = pool[0]
+                break
+        if chosen is None:
+            log.info("team_unresolved", team=team.name, candidates=seen[:6])
             return None
+        t = chosen
+        score = 1.0 if normalize_name(t["name"]) in (want, " ".join(core)) else 0.9
         t = pool[0][1]
         self.session.add(
             TeamSourceId(
@@ -147,7 +200,7 @@ class ApiFootballTeams:
                 source_team_id=str(t["id"]),
                 team_id=team.team_id,
                 source_name=t["name"],
-                match_confidence=cands[0][0] / 100,
+                match_confidence=score,
                 match_method="auto:name",
             )
         )
