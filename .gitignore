@@ -53,3 +53,4 @@ Thumbs.db
 global_football_scout.egg-info/
 logs/
 ml/artifacts/
+catboost_info/
