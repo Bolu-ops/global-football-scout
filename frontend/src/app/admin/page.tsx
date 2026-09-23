@@ -8,9 +8,17 @@ export default function AdminPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [coverage, setCoverage] = useState<Coverage[]>([]);
   const [reviews, setReviews] = useState<IdentityReview[]>([]);
+  // The review queue and its decisions need the server's ADMIN_TOKEN; kept for this tab only.
+  const [token, setToken] = useState("");
+  const [tokenInput, setTokenInput] = useState("");
+  const [reviewError, setReviewError] = useState<string | null>(null);
   async function decide(id: number, d: "approve" | "reject") {
-    await api.decideIdentity(id, d);
-    setReviews((r) => r.filter((x) => x.candidate_id !== id));
+    try {
+      await api.decideIdentity(id, d, token);
+      setReviews((r) => r.filter((x) => x.candidate_id !== id));
+    } catch (e) {
+      setReviewError(String(e));
+    }
   }
   const [error, setError] = useState<string | null>(null);
 
@@ -18,8 +26,40 @@ export default function AdminPage() {
     api.adminStats().then(setStats).catch((e) => setError(String(e)));
     api.adminJobs().then(setJobs).catch(() => null);
     api.coverage().then(setCoverage).catch(() => null);
-    api.identityReviews().then(setReviews).catch(() => null);
+    let saved: string | null = null;
+    try {
+      saved = sessionStorage.getItem("gfs-admin-token");
+    } catch {
+      /* storage unavailable: ask again */
+    }
+    if (saved) loadReviews(saved);
   }, []);
+
+  function loadReviews(t: string) {
+    api
+      .identityReviews(t)
+      .then((r) => {
+        setToken(t);
+        setReviewError(null);
+        setReviews(r);
+      })
+      .catch((e) => {
+        setToken(t);
+        setReviews([]);
+        setReviewError(String(e).includes("401") ? "Admin token rejected." : String(e));
+      });
+  }
+
+  function saveToken(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      sessionStorage.setItem("gfs-admin-token", tokenInput);
+    } catch {
+      /* keep it in memory only */
+    }
+    loadReviews(tokenInput);
+    setTokenInput("");
+  }
 
   if (error) return <div className="text-bad">{error}</div>;
   if (!stats) return <div className="text-muted">Loading…</div>;
@@ -65,6 +105,11 @@ export default function AdminPage() {
       <section className="card p-4">
         <h2 className="mb-1 font-semibold">Identity review queue</h2>
         <p className="mb-2 text-xs text-muted">Cross-source matches that were not unambiguous. Approving copies the source&apos;s biographical data onto the player; nothing is merged automatically.</p>
+        <form onSubmit={saveToken} className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+          <input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder={token ? "Admin token set" : "Admin token"} aria-label="Admin token" className="rounded border border-border bg-transparent px-2 py-1" />
+          <button type="submit" className="rounded border border-border px-2 py-1">Unlock</button>
+        </form>
+        {reviewError && <p className="mb-2 text-sm text-bad">{reviewError}</p>}
         <div className="max-h-80 overflow-auto">
           <table className="w-full text-sm">
             <thead><tr className="label text-left"><th>internal player</th><th>source candidate</th><th className="text-right">score</th><th>why review</th><th></th></tr></thead>
@@ -78,7 +123,8 @@ export default function AdminPage() {
               </tr>
             ))}</tbody>
           </table>
-          {reviews.length === 0 && <p className="text-sm text-muted">Queue empty.</p>}
+          {!token && <p className="text-sm text-muted">Enter the admin token to see the queue.</p>}
+          {token && !reviewError && reviews.length === 0 && <p className="text-sm text-muted">Queue empty.</p>}
         </div>
       </section>
       <section className="card p-4">

@@ -80,7 +80,9 @@ def test_admin_and_model_info(client):
     stats = client.get("/admin/stats").json()
     assert stats["counts"]["metric_definitions"] == 79
     info = client.get("/model/info").json()
-    assert info["transfer_value"]["status"].startswith(("not trained", "active", "trained, not activated"))
+    assert info["transfer_value"]["status"].startswith(
+        ("not trained", "active", "trained, not activated")
+    )
     assert "exclusion_rule" in info and "limitations" in info
 
 
@@ -92,3 +94,48 @@ def test_natural_language_without_key(client, monkeypatch):
     r = client.post("/scouting/natural-language", json={"query": "winger like Vinicius"})
     assert r.status_code in (503, 200)
     get_settings.cache_clear()
+
+
+@pytest.fixture
+def settings_env(monkeypatch):
+    from gfs_core.config import get_settings
+
+    def set_env(**values):
+        for k, v in values.items():
+            monkeypatch.setenv(k, v)
+        get_settings.cache_clear()
+
+    yield set_env
+    get_settings.cache_clear()
+
+
+def test_admin_routes_disabled_without_token(client, settings_env):
+    settings_env(ADMIN_TOKEN="")
+    assert client.get("/admin/identity-reviews").status_code == 503
+    assert client.post("/admin/cache/clear").status_code == 503
+    assert client.get("/admin/stats").status_code == 200  # read-only stats stay public
+
+
+def test_admin_routes_require_matching_token(client, settings_env):
+    settings_env(ADMIN_TOKEN="s3cret-test-token")
+    assert client.get("/admin/identity-reviews").status_code == 401
+    bad = {"X-Admin-Token": "wrong"}
+    assert client.post("/admin/identity-reviews/1/approve", headers=bad).status_code == 401
+    good = {"X-Admin-Token": "s3cret-test-token"}
+    assert client.get("/admin/identity-reviews", headers=good).status_code == 200
+
+
+def test_llm_budget_per_client_and_global(settings_env):
+    import uuid
+
+    from backend import cache
+    from backend.security import llm_allowed
+
+    if cache._client() is None:
+        pytest.skip("redis not reachable")
+    settings_env(LLM_HOURLY_LIMIT_PER_CLIENT="2", LLM_DAILY_LIMIT="1000000")
+    ip = f"test-{uuid.uuid4()}"
+    assert [llm_allowed(ip) for _ in range(3)] == [True, True, False]
+    assert llm_allowed(f"test-{uuid.uuid4()}")  # another visitor has their own budget
+    settings_env(LLM_HOURLY_LIMIT_PER_CLIENT="100", LLM_DAILY_LIMIT="0")
+    assert not llm_allowed(f"test-{uuid.uuid4()}")  # global daily cap applies to everyone

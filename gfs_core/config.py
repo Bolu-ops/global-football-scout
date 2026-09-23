@@ -34,11 +34,21 @@ class Settings(BaseSettings):
     api_port: int = 8000
     log_level: str = "INFO"
 
+    # Public-deployment guards. Blank ADMIN_TOKEN disables the admin write/review routes.
+    admin_token: str = ""
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    llm_hourly_limit_per_client: int = 20
+    llm_daily_limit: int = 500
+
     data_dir: Path = Field(default=PROJECT_ROOT / "data")
 
     @property
     def raw_dir(self) -> Path:
         return self.data_dir / "raw"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [x.strip() for x in self.cors_origins.split(",") if x.strip()]
 
     @property
     def excluded_competition_id_list(self) -> list[int]:

@@ -23,6 +23,7 @@ This is a data-engineering / analytics project, not a football website. Rankings
 11. [Limitations](#limitations)
 12. [Installation](#installation)
 13. [Environment variables](#environment-variables)
+    - [Public deployment](#public-deployment)
 14. [How to add a new data source](#how-to-add-a-new-data-source)
 15. [How to add a new league](#how-to-add-a-new-league)
 16. [How to retrain the model](#how-to-retrain-the-model)
@@ -189,7 +190,25 @@ cd frontend && npm install && npm run dev         # UI:  http://localhost:3000
 
 ## Environment variables
 
-See [`.env.example`](.env.example). Provider keys are optional: a blank key disables that provider. `ANTHROPIC_API_KEY` enables natural-language scouting (translation only). `EXCLUDED_TOP_LEAGUES_COUNT` / `EXCLUDED_COMPETITION_IDS` control amendment A1; `MINIMUM_MINUTES`, `SIMILARITY_RESULT_COUNT`, `PERCENTILE_MIN_POOL_SIZE` set analytics defaults (also editable in `analytics_config`).
+See [`.env.example`](.env.example). Provider keys are optional: a blank key disables that provider. `ANTHROPIC_API_KEY` enables natural-language scouting (translation only). `EXCLUDED_TOP_LEAGUES_COUNT` / `EXCLUDED_COMPETITION_IDS` control amendment A1; `MINIMUM_MINUTES`, `SIMILARITY_RESULT_COUNT`, `PERCENTILE_MIN_POOL_SIZE` set analytics defaults (also editable in `analytics_config`). `ADMIN_TOKEN`, `CORS_ORIGINS`, `LLM_HOURLY_LIMIT_PER_CLIENT` and `LLM_DAILY_LIMIT` are the public-deployment guards described below.
+
+### Public deployment
+
+`docker-compose.prod.yml` runs the whole stack on one server (2–4 GB RAM). Only Caddy is published (ports 80/443, automatic HTTPS); the dashboard is at `https://$DOMAIN` and the API at `https://$DOMAIN/api` on the same origin, so the browser never needs CORS. Postgres and Redis have no published ports.
+
+```bash
+# on the server, in a clone of this repository
+cp .env.example .env    # set DOMAIN, POSTGRES_PASSWORD, ADMIN_TOKEN (openssl rand -hex 32), provider keys
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Point the domain's DNS A record at the server before starting; Caddy requests the certificate on first start. The compose file refuses to start while `DOMAIN`, `POSTGRES_PASSWORD` or `ADMIN_TOKEN` is unset. It uses its own Compose project (`gfs-prod`), so running it on a development machine does not touch the development database.
+
+Guards that matter once the site is public:
+
+- **Admin actions** (identity-review queue, approve/reject, cache clear) require the `X-Admin-Token` header; the dashboard's admin page asks for the token. With `ADMIN_TOKEN` blank these routes are disabled. Read-only counts, jobs and coverage stay public.
+- **LLM spend.** Natural-language search and report narratives call the Anthropic API. Each visitor gets `LLM_HOURLY_LIMIT_PER_CLIENT` calls per hour and all visitors together `LLM_DAILY_LIMIT` per day; over the limit, natural-language search answers 429 and reports are served without the narrative. Narratives are cached, so repeat views are free. Without Redis no LLM call is made.
+- **Data licences.** StatsBomb open data permits non-commercial use with attribution and no redistribution of the data; the site shows derived aggregates only. Confirm your API-Football plan allows displaying its transfer data before publishing fees.
 
 ## How to add a new data source
 

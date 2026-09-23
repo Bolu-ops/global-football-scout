@@ -1,0 +1,91 @@
+# Production stack for a single server: only Caddy is reachable from the internet (80/443,
+# automatic HTTPS). The dashboard is served at https://$DOMAIN and the API at
+# https://$DOMAIN/api on the same origin. Postgres and Redis have no published ports.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Required in .env: DOMAIN, POSTGRES_PASSWORD, ADMIN_TOKEN (see .env.example).
+name: gfs-prod
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gfs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-gfs}
+    volumes:
+      - gfs_pgdata:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gfs} -d ${POSTGRES_DB:-gfs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-gfs}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-gfs}
+      REDIS_URL: redis://redis:6379/0
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?set ADMIN_TOKEN in .env}
+      CORS_ORIGINS: https://${DOMAIN:?set DOMAIN in .env}
+    # Only Caddy can reach this container, so trusting its X-Forwarded-For is safe; Caddy
+    # itself ignores client-supplied forwarding headers, which keeps per-visitor limits honest.
+    command: >-
+      sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000
+      --proxy-headers --forwarded-allow-ips='*' --root-path /api"
+    volumes:
+      - ./data:/app/data
+      - ./ml/artifacts:/app/ml/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - frontend
+
+volumes:
+  gfs_pgdata:
+  caddy_data:
+  caddy_config:

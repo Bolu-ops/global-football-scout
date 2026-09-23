@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.api.routes.players import to_response
 from backend.deps import db
 from backend.schemas import NaturalLanguageRequest, ScoutingSearchRequest, SimilarityResponse
+from backend.security import client_id, llm_allowed
 from backend.services.players import search_players
+from gfs_core.config import get_settings
 from gfs_core.db.models import Competition
 from ml.similarity import SimilarityFilters, find_similar
 
@@ -45,9 +47,15 @@ def scouting_search(
 
 
 @router.post("/natural-language")
-def natural_language(body: NaturalLanguageRequest, session: Session = Depends(db)) -> dict:
+def natural_language(
+    body: NaturalLanguageRequest, request: Request, session: Session = Depends(db)
+) -> dict:
     from backend.services.nl_query import parse_query
 
+    if get_settings().anthropic_api_key and not llm_allowed(client_id(request)):
+        raise HTTPException(
+            429, "Natural-language search limit reached; try again later or use the search form"
+        )
     try:
         parsed = parse_query(body.query)
     except RuntimeError as exc:

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.deps import db
 from backend.schemas import AdminStats
+from backend.security import require_admin
 from data_pipeline.seeds.analytics_config import config_version, load_config
 from data_pipeline.seeds.metrics import DEFINITION_VERSION
 from gfs_core.db.models import (
@@ -310,7 +311,7 @@ def model_info(session: Session = Depends(db)) -> dict:
     }
 
 
-@router.get("/admin/identity-reviews")
+@router.get("/admin/identity-reviews", dependencies=[Depends(require_admin)])
 def identity_reviews(limit: int = 100, session: Session = Depends(db)) -> list[dict]:
     from gfs_core.db.models import Player
 
@@ -338,7 +339,9 @@ def identity_reviews(limit: int = 100, session: Session = Depends(db)) -> list[d
     ]
 
 
-@router.post("/admin/identity-reviews/{candidate_id}/{decision}")
+@router.post(
+    "/admin/identity-reviews/{candidate_id}/{decision}", dependencies=[Depends(require_admin)]
+)
 def decide_identity(candidate_id: int, decision: str, session: Session = Depends(db)) -> dict:
     from datetime import UTC, datetime
 
@@ -368,7 +371,7 @@ def decide_identity(candidate_id: int, decision: str, session: Session = Depends
     return {"candidate_id": candidate_id, "status": cand.status.value}
 
 
-@router.post("/admin/cache/clear")
+@router.post("/admin/cache/clear", dependencies=[Depends(require_admin)])
 def clear_cache() -> dict:
     from backend import cache
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from backend.deps import db
@@ -189,13 +189,21 @@ def player_transfer_value(player_id: int, session: Session = Depends(db)) -> dic
 @router.get("/{player_id}/report")
 def player_report(
     player_id: int,
+    request: Request,
     season_id: int | None = None,
     target_player_id: int | None = None,
     session: Session = Depends(db),
 ) -> dict:
+    from backend.security import client_id, llm_allowed
     from backend.services.report import build_report
 
-    report = build_report(session, player_id, season_id, target_player_id)
+    report = build_report(
+        session,
+        player_id,
+        season_id,
+        target_player_id,
+        may_call_llm=lambda: llm_allowed(client_id(request)),
+    )
     if report is None:
         raise HTTPException(404, "player not found")
     return report

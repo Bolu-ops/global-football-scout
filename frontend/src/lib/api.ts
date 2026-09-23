@@ -128,16 +128,16 @@ export type TransferValue = {
   model_market_discrepancy_eur?: number | null;
 };
 
-async function get<T>(path: string): Promise<T> {
-  const r = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+async function get<T>(path: string, headers?: HeadersInit): Promise<T> {
+  const r = await fetch(`${API_URL}${path}`, { cache: "no-store", headers });
   if (!r.ok) throw new Error(`${r.status} ${path}: ${await r.text()}`);
   return r.json();
 }
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+async function post<T>(path: string, body: unknown, headers?: Record<string, string>): Promise<T> {
   const r = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`${r.status} ${path}: ${await r.text()}`);
@@ -153,8 +153,9 @@ export const api = {
   naturalLanguage: (query: string) => post<{ interpretation: string; notes: string[]; result: SimilarityResponse | null; structured_filters: Record<string, unknown> }>(`/scouting/natural-language`, { query }),
   adminStats: () => get<AdminStats>(`/admin/stats`),
   adminJobs: () => get<Job[]>(`/admin/jobs`),
-  identityReviews: () => get<IdentityReview[]>(`/admin/identity-reviews`),
-  decideIdentity: (id: number, decision: "approve" | "reject") => post<{ status: string }>(`/admin/identity-reviews/${id}/${decision}`, {}),
+  identityReviews: (adminToken: string) => get<IdentityReview[]>(`/admin/identity-reviews`, { "X-Admin-Token": adminToken }),
+  decideIdentity: (id: number, decision: "approve" | "reject", adminToken: string) =>
+    post<{ status: string }>(`/admin/identity-reviews/${id}/${decision}`, {}, { "X-Admin-Token": adminToken }),
   coverage: () => get<Coverage[]>(`/admin/coverage`),
   modelInfo: () => get<Record<string, unknown>>(`/model/info`),
   dataSources: () => get<DataSource[]>(`/data-sources`),

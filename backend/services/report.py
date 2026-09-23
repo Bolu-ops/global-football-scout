@@ -4,10 +4,12 @@ below and is instructed not to add any claim that is not in them."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from backend import cache
 from backend.services.players import player_detail, player_stats
 from gfs_core.config import get_settings
 from ml.similarity import SimilarityFilters, find_similar
@@ -23,6 +25,7 @@ def build_report(
     player_id: int,
     season_id: int | None = None,
     target_player_id: int | None = None,
+    may_call_llm: Callable[[], bool] = lambda: True,
 ) -> dict[str, Any] | None:
     detail = player_detail(session, player_id)
     if detail is None:
@@ -107,8 +110,18 @@ def build_report(
         ],
     }
     narrative = None
-    if get_settings().anthropic_api_key:
-        narrative = _narrate(sections, detail.display_name)
+    settings = get_settings()
+    if settings.anthropic_api_key:
+        # The narrative only depends on the facts, so identical facts reuse the cached text
+        # and only a cache miss spends LLM budget.
+        key = cache.key_for(
+            "narrative", settings.llm_model, {"name": detail.display_name, "sections": sections}
+        )
+        narrative = cache.get(key)
+        if narrative is None and may_call_llm():
+            narrative = _narrate(sections, detail.display_name)
+            if narrative:
+                cache.put(key, narrative)
     return {
         "player": detail.model_dump(),
         "season": season.model_dump(),
