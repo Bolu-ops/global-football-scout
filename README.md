@@ -204,6 +204,22 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 Point the domain's DNS A record at the server before starting; Caddy requests the certificate on first start. The compose file refuses to start while `DOMAIN`, `POSTGRES_PASSWORD` or `ADMIN_TOKEN` is unset. It uses its own Compose project (`gfs-prod`), so running it on a development machine does not touch the development database.
 
+**Moving the data.** Instead of re-running the pipeline on the server, copy the development data across. The bundle holds a database dump, `data/` without the StatsBomb raw files (only needed to re-ingest) and `ml/artifacts` — about 75 MB:
+
+```bash
+scripts/deploy/export_data.sh                        # on this machine: writes gfs-bundle-YYYYMMDD.tar
+scp gfs-bundle-*.tar user@server:gfs/                # gfs/ = the repository clone on the server
+scripts/deploy/restore_data.sh gfs-bundle-*.tar      # on the server: replaces the prod database, starts the stack
+```
+
+**Daily transfer job.** On the server the job runs inside the API image against the production database, from the host crontab (`crontab -e`):
+
+```
+5 1 * * * /home/<user>/gfs/scripts/deploy/daily_transfers_prod.sh
+```
+
+It logs to `logs/daily_transfers.log`. Once it runs on the server, stop the development machine's timer (`systemctl --user disable --now gfs-daily-transfers.timer`) so the two do not share the API-Football daily quota.
+
 Guards that matter once the site is public:
 
 - **Admin actions** (identity-review queue, approve/reject, cache clear) require the `X-Admin-Token` header; the dashboard's admin page asks for the token. With `ADMIN_TOKEN` blank these routes are disabled. Read-only counts, jobs and coverage stay public.
