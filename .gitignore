@@ -55,3 +55,4 @@ logs/
 ml/artifacts/
 catboost_info/
 gfs-bundle-*.tar
+backups/

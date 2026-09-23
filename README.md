@@ -220,6 +220,14 @@ scripts/deploy/restore_data.sh gfs-bundle-*.tar      # on the server: replaces t
 
 It logs to `logs/daily_transfers.log`. Once it runs on the server, stop the development machine's timer (`systemctl --user disable --now gfs-daily-transfers.timer`) so the two do not share the API-Football daily quota.
 
+**Backups.** `scripts/deploy/backup.sh` writes a bundle in the same format to `backups/` every night, checks the dump reads back in full, keeps the newest `BACKUP_KEEP` (14) and, when `BACKUP_REMOTE` is set, mirrors them off the server with rsync (the server needs an SSH key for that target). Add it to the crontab next to the daily job:
+
+```
+30 3 * * * /home/<user>/gfs/scripts/deploy/backup.sh
+```
+
+Failures are logged to `logs/backup.log`. To recover, run `scripts/deploy/restore_data.sh backups/gfs-bundle-<date>.tar`.
+
 Guards that matter once the site is public:
 
 - **Admin actions** (identity-review queue, approve/reject, cache clear) require the `X-Admin-Token` header; the dashboard's admin page asks for the token. With `ADMIN_TOKEN` blank these routes are disabled. Read-only counts, jobs and coverage stay public.
