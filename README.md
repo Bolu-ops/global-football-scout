@@ -228,6 +228,22 @@ It logs to `logs/daily_transfers.log`. Once it runs on the server, stop the deve
 
 Failures are logged to `logs/backup.log`. To recover, run `scripts/deploy/restore_data.sh backups/gfs-bundle-<date>.tar`.
 
+**Free hosting (Oracle Cloud + DuckDNS).** The whole stack runs at no cost:
+
+1. *Server.* Create an Oracle Cloud account, then an instance with shape `VM.Standard.A1.Flex` (Ampere ARM, 4 OCPU / 24 GB is the Always Free limit) and Ubuntu 24.04. If the region reports "out of capacity", retry later or pick another availability domain. All images and Python wheels used here exist for ARM. Upgrade the account to *Pay As You Go*: Always Free resources stay free, but Free Tier accounts have instances reclaimed after 7 days of low CPU use, which a quiet site can trigger. Set a budget alert (e.g. €1) to be safe.
+2. *Ports.* In the instance's VCN security list, add ingress rules for TCP 80 and 443. The Ubuntu image also has a restrictive firewall:
+   ```bash
+   sudo iptables -I INPUT 6 -p tcp -m multiport --dports 80,443 -m state --state NEW -j ACCEPT
+   sudo netfilter-persistent save
+   ```
+3. *Domain.* Sign in at duckdns.org, create a subdomain and set its IP to the instance's public IP; use `DOMAIN=<name>.duckdns.org`. If the IP ever changes, update it there.
+4. *No LLM key.* Leave `ANTHROPIC_API_KEY` blank: the natural-language box is hidden (`GET /features`) and reports are served without the narrative.
+5. *Off-server backups on your own machine.* Leave `BACKUP_REMOTE` blank on the server. On your laptop, set `BACKUP_SOURCE=ubuntu@<server>:gfs/backups` in this repository's `.env` and install the pull timer, which catches up missed days when the laptop is next on:
+   ```bash
+   cp scripts/deploy/systemd/gfs-pull-backups.* ~/.config/systemd/user/
+   systemctl --user daemon-reload && systemctl --user enable --now gfs-pull-backups.timer
+   ```
+
 Guards that matter once the site is public:
 
 - **Admin actions** (identity-review queue, approve/reject, cache clear) require the `X-Admin-Token` header; the dashboard's admin page asks for the token. With `ADMIN_TOKEN` blank these routes are disabled. Read-only counts, jobs and coverage stay public.

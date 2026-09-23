@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PlayerSearch } from "@/components/PlayerSearch";
 import { ResultsTable } from "@/components/ResultsTable";
@@ -21,6 +21,12 @@ export default function ScoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [nl, setNl] = useState("");
   const [nlOut, setNlOut] = useState<{ interpretation: string; notes: string[] } | null>(null);
+  // Hidden until the API confirms it: deployments without an LLM key have no natural-language search.
+  const [nlEnabled, setNlEnabled] = useState(false);
+
+  useEffect(() => {
+    api.features().then((f) => setNlEnabled(f.natural_language)).catch(() => setNlEnabled(false));
+  }, []);
 
   async function analyze(p: PlayerSummary = target!) {
     if (!p) return;
@@ -100,10 +106,10 @@ export default function ScoutPage() {
             {loading ? "Analysing…" : "Analyse"}
           </button>
         </div>
-        <div className="flex gap-2">
+        {nlEnabled && <div className="flex gap-2">
           <input value={nl} onChange={(e) => setNl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && askNl()} placeholder='Or ask: "find me a winger like Vinícius outside the top leagues"' className="w-full rounded border border-border bg-surface px-3 py-2 text-sm placeholder:text-muted" />
           <button onClick={askNl} disabled={loading} className="rounded border border-border px-3 py-2 text-sm hover:bg-surface-2">Ask</button>
-        </div>
+        </div>}
         {nlOut && (
           <div className="card p-3 text-sm">
             <div><span className="label">interpreted as</span> <span className="ml-2">{nlOut.interpretation}</span></div>

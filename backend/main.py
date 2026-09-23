@@ -31,3 +31,9 @@ def health() -> dict:
     with get_engine().connect() as conn:
         conn.execute(text("select 1"))
     return {"status": "ok"}
+
+
+@app.get("/features", tags=["ops"])
+def features() -> dict:
+    """Optional features this deployment has switched on, so the UI can hide the rest."""
+    return {"natural_language": bool(get_settings().anthropic_api_key)}

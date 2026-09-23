@@ -26,6 +26,15 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_features_follow_llm_key(client, monkeypatch):
+    from gfs_core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "anthropic_api_key", "")
+    assert client.get("/features").json() == {"natural_language": False}
+    monkeypatch.setattr(get_settings(), "anthropic_api_key", "sk-test")
+    assert client.get("/features").json() == {"natural_language": True}
+
+
 def test_search_and_detail(client):
     r = client.get("/players", params={"q": "vinicius", "limit": 3})
     assert r.status_code == 200

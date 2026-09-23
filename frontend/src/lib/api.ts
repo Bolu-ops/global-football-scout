@@ -145,6 +145,7 @@ async function post<T>(path: string, body: unknown, headers?: Record<string, str
 }
 
 export const api = {
+  features: () => get<{ natural_language: boolean }>(`/features`),
   searchPlayers: (q: string, limit = 8) => get<PlayerSummary[]>(`/players?q=${encodeURIComponent(q)}&limit=${limit}`),
   player: (id: number) => get<PlayerDetail>(`/players/${id}`),
   stats: (id: number, seasonId?: number) => get<PlayerStats>(`/players/${id}/stats${seasonId ? `?season_id=${seasonId}` : ""}`),

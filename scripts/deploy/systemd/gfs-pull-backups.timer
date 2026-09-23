@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily copy of Global Football Scout backups from the server
+
+[Timer]
+# The server's backup runs at 03:30; pull after it.
+OnCalendar=*-*-* 09:00:00
+# Catch up a run missed while this machine was off or suspended.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
