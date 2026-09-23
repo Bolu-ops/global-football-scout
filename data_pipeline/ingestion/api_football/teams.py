@@ -91,7 +91,7 @@ CLUB_STOPWORDS = {
     "milan",
 }
 RESERVE_RE = re.compile(
-    r"(\b(w|b|ii|iii|u1[6-9]|u2[0-3]|youth|reserves?|women|femenino|feminino)\b)$"
+    r"(\b(w|b|ii|iii|u1[6-9]|u2[0-3]|youth|reserves?|women|ladies|lfc|wfc|femenino|feminino)\b)$"
 )
 
 
