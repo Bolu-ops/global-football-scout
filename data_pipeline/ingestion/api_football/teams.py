@@ -193,7 +193,6 @@ class ApiFootballTeams:
             return None
         t = chosen
         score = 1.0 if normalize_name(t["name"]) in (want, " ".join(core)) else 0.9
-        t = pool[0][1]
         self.session.add(
             TeamSourceId(
                 source_id=self.source_id,
